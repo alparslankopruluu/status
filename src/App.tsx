@@ -9,7 +9,7 @@ import {
   MascotState,
   UserPreferences,
 } from './types';
-import { Activity, Sparkles, Maximize2, Move } from 'lucide-react';
+import { Activity, Sparkles, Maximize2, Move, Key } from 'lucide-react';
 
 const INITIAL_PROVIDERS: Record<ProviderId, ProviderUsage> = {
   claude: {
@@ -78,7 +78,7 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isWidgetMode, setIsWidgetMode] = useState(false);
 
-  // Aggregate score calculation
+  // Aggregate health calculation
   const providerList = Object.values(providers);
   const totalPercent = providerList.reduce((sum, p) => sum + p.remainingPercent, 0);
   const overallHealthScore = Math.round(totalPercent / providerList.length);
@@ -156,9 +156,8 @@ export default function App() {
     return (
       <div
         data-tauri-drag-region
-        className="w-full h-screen bg-slate-950/80 backdrop-blur-xl border border-slate-800 rounded-3xl p-3 flex flex-col items-center justify-between cursor-move select-none shadow-2xl overflow-hidden group"
+        className="w-full h-screen bg-slate-950/90 backdrop-blur-2xl border border-slate-800/80 rounded-3xl p-3 flex flex-col items-center justify-between cursor-move select-none shadow-2xl overflow-hidden group"
       >
-        {/* Drag Indicator & Expand Button */}
         <div data-tauri-drag-region className="w-full flex items-center justify-between px-2 pt-1 text-[10px] text-slate-400">
           <span data-tauri-drag-region className="flex items-center gap-1 font-bold text-slate-300">
             <Move className="w-3 h-3 text-cyan-400" /> Desktop Mascot
@@ -172,7 +171,6 @@ export default function App() {
           </button>
         </div>
 
-        {/* Mascot Center */}
         <OwlMascot
           state={mascotState}
           healthScore={overallHealthScore}
@@ -180,7 +178,6 @@ export default function App() {
           onClick={() => setIsWidgetMode(false)}
         />
 
-        {/* Quick Health Summary Pill */}
         <div data-tauri-drag-region className="pb-1 text-[11px] font-mono text-center">
           <span className="text-slate-400">Health: </span>
           <span
@@ -201,8 +198,8 @@ export default function App() {
 
   // Full Desktop Popover View
   return (
-    <div className="h-screen w-full bg-slate-950/95 text-slate-100 flex flex-col antialiased border border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
-      {/* Header Bar with Native Drag Support */}
+    <div className="h-screen w-full bg-slate-950/95 text-slate-100 flex flex-col antialiased border border-slate-800/80 rounded-2xl overflow-hidden shadow-2xl">
+      {/* Header Bar */}
       <Header
         healthScore={overallHealthScore}
         mascotState={mascotState}
@@ -212,10 +209,10 @@ export default function App() {
         onToggleWidgetMode={() => setIsWidgetMode(true)}
       />
 
-      {/* Main Content Area */}
-      <main className="flex-1 p-3.5 flex flex-col gap-3.5 overflow-y-auto">
-        {/* Mascot Hero Card */}
-        <div className="glass-panel rounded-2xl p-3 flex flex-col items-center justify-center relative overflow-hidden border border-slate-800/80 shadow-xl">
+      {/* Main Scrollable Content */}
+      <main className="flex-1 p-3 flex flex-col gap-3 overflow-y-auto">
+        {/* Mascot Hero Card (Overflow Visible to avoid cutoff) */}
+        <div className="glass-panel rounded-2xl p-2.5 flex flex-col items-center justify-center relative overflow-visible shadow-xl border border-slate-800/80">
           <OwlMascot
             state={mascotState}
             healthScore={overallHealthScore}
@@ -228,9 +225,8 @@ export default function App() {
             }}
           />
 
-          {/* Quick Click Hint */}
-          <span className="text-[10px] text-slate-500 font-mono mt-0.5 opacity-70 hover:opacity-100 transition-opacity">
-            💡 Click owl to preview mascot state transitions
+          <span className="text-[10px] text-slate-400 font-mono mt-0.5 opacity-75 hover:opacity-100 transition-opacity">
+            💡 Click owl to test mascot state animations
           </span>
         </div>
 
@@ -240,9 +236,12 @@ export default function App() {
             <Activity className="w-3.5 h-3.5 text-emerald-400" />
             Monitored AI Coding Tools
           </h3>
-          <span className="text-[10px] font-mono text-slate-500">
-            Auto-refresh: {preferences.refreshIntervalSeconds}s
-          </span>
+          <button
+            onClick={() => setIsSettingsOpen(true)}
+            className="text-[10px] font-mono text-cyan-400 hover:underline flex items-center gap-1"
+          >
+            <Key className="w-3 h-3" /> API Keys / Paths
+          </button>
         </div>
 
         {/* Provider Cards List */}
@@ -258,14 +257,14 @@ export default function App() {
       </main>
 
       {/* Footer Bar */}
-      <footer className="px-3.5 py-1.5 border-t border-slate-900 bg-slate-950/95 text-center text-[10px] font-mono text-slate-500 flex items-center justify-between">
-        <span>macOS &amp; Windows Desktop App</span>
-        <span className="text-emerald-400/80 flex items-center gap-1">
+      <footer className="px-3.5 py-1.5 border-t border-slate-900 bg-slate-950 text-center text-[10px] font-mono text-slate-500 flex items-center justify-between">
+        <span>macOS &amp; Windows Native Bar</span>
+        <span className="text-emerald-400/90 flex items-center gap-1">
           <Sparkles className="w-3 h-3" /> StatusOwl Active
         </span>
       </footer>
 
-      {/* Preferences Modal */}
+      {/* Preferences & API Key Modal */}
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}

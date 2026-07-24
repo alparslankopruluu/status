@@ -1,22 +1,24 @@
-const { app, BrowserWindow, Tray, Menu, nativeImage } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, screen } = require('electron');
 const path = require('path');
 
 let tray = null;
 let mainWindow = null;
 
-// Base64 32x32 Owl Tray Icon (Cyan/Green Owl Face)
-const OWL_ICON_DATA_URL =
-  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAACXBIWXMAAAsTAAALEwEAmpwYAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAJ/SURBVHgB7VdNSgNBDJ5m/mwoIjh4FUE8g3gE7wH0CnoQ72H1BF4gHsCDeANBPAiKiKCIIFp/0k7SSScza9tV8GB3kpl8efneZNLEU+O5L/v9fr80Gg3L9Xpd0XW91mg0vubz+S3C4/EYpZTL5S5omibPzs4URVEUhK/i83q93m21WneY2/v9fs113Rt8Fv9bADAYDPh8PjeiKILgHh0djWq12gXedQFA8EwIvhgOh/jC2ePjo1atVq9x3QkAGo1Gk+Vy+Ww4HM6x/y263W48n887zWYT616A6XQ6xOfz+fj8/HzU7/fn+Mz7uFz/T6JcLrcwNz5f8+5iPpvNfnd3d+9xfSfg4+OjtVgsjkwm0wR9e3t7v0ajccv3k8kksdlsjguFwm2xWDwjVigULtFnTNDL5fItvjFvh8PhHq5p8b24uLjDNeNyuYy+7e3toW91dXXp9Xp/d/7g6wDAnp+fXyFm5vN5n6urqyvEX15eYhz+5/P5q5eXFzyjU2x0dHRlAEC4W6vVflAU1Wg0rm9vb08ODw8PCL+8vIS+w8PDI2gPDg6Op9PpsFardc/Ozm4x3qjT6VwbAIvFgnl+fv7j+vr66eDgwEV8fX19xPPx8fF5Pp8v+/3+Hn60vr4+x1jDfr9/iXUvAIBtvdfrDcfjMcW3s7OzH/P5HEE8gvhjY+VwONxDX+n3+/gG3xWLRZf46enpDe7Z7f8D4Pj42B6Px+f49g+/o6Oju1KpdIVvF11t/fPz00f86enpAeL39/df1uv1q7u7uwtc0+b8/HxH340B8F8A/AA4A/AAAPgC6q2H+Jt2v1QAAAAASUVORK5CYR5BAAA';
+// High-resolution 22x22 Template Icon for macOS Status Bar / Windows Tray
+// Solid silhouette for macOS dark/light mode compatibility
+const TRAY_ICON_BASE64 =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAACXBIWXMAAAsTAAALEwEAmpwYAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAE4SURBVHgB7VRREsIgDDyavZsn8QReRV9AT+A9+BLxBL2bnqR302Y6HegIKrYzw2TYpkkbki0GjHnGmFfE5x+a34k+79v3bScitoh4g681zrkLhLGBsQWq/QzL7W3bPhCRBca/w1prvx6Px2uapg9y1mC6Y8+K191udwvDsF+v1ysw+Y15uV4eC36M43hP0/SBnE+E+Yc08yZ7h9oD2zYFmYj0yP0VfK3N/Jll2Ys0G3Icx5dZ1y/wHl3XZXwXvKx8m2aW+B4O497s3pX7l4j4xQ/B43K5vN3v9x1yPhG+h3Hh5/u+fxKRCcb/g20b5XwP9w7bNk4wXwV/0T+dTh9xHM/IeYZx4fN1XX/Xdf0k4j0RvgS9aZp35FwRPhFv13V9Z5omImIhz/8VjHnFmFcj4gN/n32Fq2e14wAAAABJRU5ErkJggg==';
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 400,
+    width: 380,
     height: 600,
-    show: true,
-    frame: true,
-    transparent: false,
+    show: false,
+    frame: false,
+    transparent: true,
     alwaysOnTop: true,
-    resizable: true,
+    skipTaskbar: true,
+    resizable: false,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
@@ -26,26 +28,56 @@ function createWindow() {
   const indexPath = path.join(__dirname, '../dist/index.html');
   mainWindow.loadFile(indexPath);
 
-  mainWindow.once('ready-to-show', () => {
-    mainWindow.show();
-    mainWindow.center();
-    mainWindow.focus();
-    console.log('🦉 StatusOwl Desktop Window Opened Successfully!');
+  mainWindow.on('blur', () => {
+    // Hide window when clicking outside like native macOS menu bar popovers
+    if (mainWindow && mainWindow.isVisible()) {
+      mainWindow.hide();
+    }
   });
+}
+
+function positionWindowNearTray() {
+  if (!tray || !mainWindow) return;
+  const trayBounds = tray.getBounds();
+  const windowBounds = mainWindow.getBounds();
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+
+  let x = Math.round(trayBounds.x + trayBounds.width / 2 - windowBounds.width / 2);
+  let y = Math.round(trayBounds.y + trayBounds.height + 4);
+
+  // Bounds checks for screen edges
+  if (x + windowBounds.width > screenWidth) {
+    x = screenWidth - windowBounds.width - 12;
+  }
+  if (x < 12) x = 12;
+
+  // On Windows, tray is usually at the bottom
+  if (y + windowBounds.height > screenHeight) {
+    y = Math.round(trayBounds.y - windowBounds.height - 4);
+  }
+
+  mainWindow.setPosition(x, y, false);
 }
 
 function createTray() {
   try {
-    const icon = nativeImage.createFromDataURL(OWL_ICON_DATA_URL);
+    const icon = nativeImage.createFromDataURL(TRAY_ICON_BASE64);
+    icon.setTemplateImage(true); // Native macOS dark/light mode status item
     tray = new Tray(icon);
+
+    // Display title right in the macOS top status bar!
+    if (process.platform === 'darwin') {
+      tray.setTitle(' 🦉 78%');
+    }
 
     const contextMenu = Menu.buildFromTemplate([
       {
         label: 'Show StatusOwl',
         click: () => {
           if (mainWindow) {
+            positionWindowNearTray();
             mainWindow.show();
-            mainWindow.center();
             mainWindow.focus();
           }
         },
@@ -59,7 +91,7 @@ function createTray() {
       },
     ]);
 
-    tray.setToolTip('StatusOwl - AI Quota Monitor');
+    tray.setToolTip('StatusOwl - AI Assistant Quota Monitor');
     tray.setContextMenu(contextMenu);
 
     tray.on('click', () => {
@@ -67,8 +99,8 @@ function createTray() {
         if (mainWindow.isVisible()) {
           mainWindow.hide();
         } else {
+          positionWindowNearTray();
           mainWindow.show();
-          mainWindow.center();
           mainWindow.focus();
         }
       }
@@ -81,7 +113,14 @@ function createTray() {
 app.whenReady().then(() => {
   createWindow();
   createTray();
-  console.log('🦉 StatusOwl App Ready & Running in Desktop Mode!');
+
+  // Position near tray on first show
+  setTimeout(() => {
+    if (mainWindow && tray) {
+      positionWindowNearTray();
+      mainWindow.show();
+    }
+  }, 300);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
