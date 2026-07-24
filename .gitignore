@@ -9,6 +9,7 @@ pnpm-debug.log*
 # Rust / Tauri build
 src-tauri/target/
 target/
+src-tauri/gen/schemas/
 
 # Dist / Production
 dist/
