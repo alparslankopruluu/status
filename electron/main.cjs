@@ -10,70 +10,78 @@ const OWL_ICON_DATA_URL =
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 380,
-    height: 580,
-    show: false,
-    frame: false,
-    transparent: true,
+    width: 400,
+    height: 600,
+    show: true,
+    frame: true,
+    transparent: false,
     alwaysOnTop: true,
-    skipTaskbar: true,
-    resizable: false,
+    resizable: true,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
     },
   });
 
-  const isDev = process.env.NODE_ENV === 'development';
-  if (isDev) {
-    mainWindow.loadURL('http://localhost:1420');
-  } else {
-    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
-  }
+  const indexPath = path.join(__dirname, '../dist/index.html');
+  mainWindow.loadFile(indexPath);
 
-  mainWindow.on('blur', () => {
-    // Keep popover window active
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show();
+    mainWindow.center();
+    mainWindow.focus();
+    console.log('🦉 StatusOwl Desktop Window Opened Successfully!');
   });
 }
 
 function createTray() {
-  const icon = nativeImage.createFromDataURL(OWL_ICON_DATA_URL);
-  tray = new Tray(icon);
+  try {
+    const icon = nativeImage.createFromDataURL(OWL_ICON_DATA_URL);
+    tray = new Tray(icon);
 
-  const contextMenu = Menu.buildFromTemplate([
-    {
-      label: 'Show StatusOwl',
-      click: () => {
-        mainWindow.show();
-        mainWindow.focus();
+    const contextMenu = Menu.buildFromTemplate([
+      {
+        label: 'Show StatusOwl',
+        click: () => {
+          if (mainWindow) {
+            mainWindow.show();
+            mainWindow.center();
+            mainWindow.focus();
+          }
+        },
       },
-    },
-    { type: 'separator' },
-    {
-      label: 'Quit StatusOwl',
-      click: () => {
-        app.quit();
+      { type: 'separator' },
+      {
+        label: 'Quit StatusOwl',
+        click: () => {
+          app.quit();
+        },
       },
-    },
-  ]);
+    ]);
 
-  tray.setToolTip('StatusOwl - AI Quota Monitor');
-  tray.setContextMenu(contextMenu);
+    tray.setToolTip('StatusOwl - AI Quota Monitor');
+    tray.setContextMenu(contextMenu);
 
-  tray.on('click', () => {
-    if (mainWindow.isVisible()) {
-      mainWindow.hide();
-    } else {
-      mainWindow.show();
-      mainWindow.focus();
-    }
-  });
+    tray.on('click', () => {
+      if (mainWindow) {
+        if (mainWindow.isVisible()) {
+          mainWindow.hide();
+        } else {
+          mainWindow.show();
+          mainWindow.center();
+          mainWindow.focus();
+        }
+      }
+    });
+  } catch (e) {
+    console.error('Tray creation warning:', e);
+  }
 }
 
 app.whenReady().then(() => {
   createWindow();
   createTray();
-  mainWindow.show();
+  console.log('🦉 StatusOwl App Ready & Running in Desktop Mode!');
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
