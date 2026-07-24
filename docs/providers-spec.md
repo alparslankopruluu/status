@@ -1,72 +1,59 @@
-# docs/providers-spec.md - Telemetry & Rate-Limit Tracking Specification
+# docs/providers-spec.md - Telemetry & Authentication Specifications
 
-This document details how StatusOwl tracks usage and rate-limits across AI coding tools.
-
----
-
-## 1. Claude Code (`claude`)
-- **Paths Inspected**:
-  - `~/.claude/`
-  - `~/.claude.json`
-  - `~/.claude/logs/`
-- **Tracked Parameters**:
-  - **5-Hour Rolling Limit**: % of tokens consumed in the current 5h window.
-  - **Weekly Account Quota**: Organization tier remaining balance.
-  - **Reset Countdown**: Calculated target reset timestamp (e.g. `2026-07-24T17:00:00Z`).
+This document details how StatusOwl detects local sessions and verifies API keys for each AI provider.
 
 ---
 
-## 2. Antigravity / Gemini (`antigravity`)
-- **Paths Inspected**:
-  - `~/.gemini/antigravity-ide/`
-  - `~/.gemini/antigravity-ide/brain/`
-- **Tracked Parameters**:
-  - **Daily Flash/Pro Quota**: Percentage of daily model invocations used.
-  - **Token Usage**: Session token counters.
-  - **Reset Window**: Midnight reset countdown timer.
+## Provider Authentication & Telemetry Architecture
 
----
-
-## 3. xAI Grok (`grok`)
-- **Paths Inspected**:
-  - `~/.grok/`
-  - xAI API usage endpoint / local header cache
-- **Tracked Parameters**:
-  - **5-Hour Window Usage**: Usage percentage for Grok 3 / Grok Code models.
-  - **Rate Limit Reset**: Time remaining until quota replenishment.
-
----
-
-## 4. OpenAI Codex (`codex`)
-- **Paths Inspected**:
-  - `~/.codex/`
-  - `~/.config/codex/`
-- **Tracked Parameters**:
-  - **Tier Usage**: Rate limit requests/min and tokens/min.
-  - **Monthly Credit / Quota**: Remaining balance %.
-
----
-
-## Unified Data Structure
-
-```typescript
-export type HealthStatus = 'healthy' | 'warning' | 'critical' | 'exhausted';
-
-export interface ProviderUsage {
-  id: 'claude' | 'antigravity' | 'grok' | 'codex';
-  name: string;
-  remainingPercent: number; // 0 to 100
-  status: HealthStatus;
-  resetTimerSeconds?: number; // Seconds until 5h / daily reset
-  usedTokens?: number;
-  maxTokens?: number;
-  lastUpdated: string;
-  isSimulated?: boolean;
-}
-
-export interface OverallStatus {
-  healthScore: number; // 0 to 100
-  mascotState: 'flying' | 'alert' | 'tired' | 'sleeping';
-  providers: Record<string, ProviderUsage>;
-}
 ```
+┌─────────────────────────────────────────────────────────────┐
+│                    StatusOwl Telemetry Engine              │
+└──────────────────────────────┬──────────────────────────────┘
+                               │
+               ┌───────────────┴───────────────┐
+               │                               │
+    ┌──────────▼──────────┐         ┌──────────▼──────────┐
+    │  Local CLI Session  │         │   Custom API Keys   │
+    │  ~/.claude/         │         │   sk-ant-...        │
+    │  ~/.gemini/         │         │   AIzaSy...         │
+    │  ~/.codex/          │         │   xai-...           │
+    └──────────┬──────────┘         └──────────┬──────────┘
+               │                               │
+               └───────────────┬───────────────┘
+                               │
+                🟢 Live Authenticated Session
+```
+
+---
+
+## Provider Breakdown & Auth Redirect URLs
+
+### 1. Claude Code (`claude`)
+- **Local CLI Config Path**: `~/.claude/`
+- **Direct Auth / Key Generation URL**: [`https://console.anthropic.com/settings/keys`](https://console.anthropic.com/settings/keys)
+- **Live Detection**: If `~/.claude/` contains valid session tokens, StatusOwl marks Claude Code as `🟢 Live Authenticated Session`.
+
+### 2. Antigravity / Gemini (`antigravity`)
+- **Local IDE Telemetry Path**: `~/.gemini/antigravity-ide/`
+- **Direct Auth / Key Generation URL**: [`https://aistudio.google.com/app/apikey`](https://aistudio.google.com/app/apikey)
+- **Live Detection**: StatusOwl auto-detects `~/.gemini/antigravity-ide/` session files or user-provided Google Gemini key (`AIzaSy...`).
+
+### 3. xAI Grok (`grok`)
+- **Local Config Path**: `~/.grok/`
+- **Direct Auth / Key Generation URL**: [`https://console.x.ai`](https://console.x.ai)
+- **Live Detection**: Verified via local Grok CLI configuration or custom xAI API key (`xai-...`).
+
+### 4. OpenAI Codex (`codex`)
+- **Local Config Path**: `~/.codex/`
+- **Direct Auth / Key Generation URL**: [`https://platform.openai.com/api-keys`](https://platform.openai.com/api-keys)
+- **Live Detection**: Verified via `~/.codex/` or custom OpenAI API key (`sk-proj-...`).
+
+---
+
+## Authentication Status Badges
+
+Every provider card in StatusOwl displays an explicit connection badge:
+
+1. 🟢 **`Live Authenticated Session`**: Active local session or valid API Key verified. Real quota tracking active.
+2. 🟡 **`Mock Data Mode`**: Fallback mode when neither local session nor API key is configured. Provides a quick "Get API Key" button to authenticate.

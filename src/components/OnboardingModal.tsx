@@ -142,37 +142,37 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
           </div>
         )}
 
-        {/* Step 3: Auth & Web Authentication Links */}
+        {/* Step 3: Auth & Direct API Key Generation Links */}
         {step === 3 && (
           <div className="p-6 flex flex-col gap-4 text-slate-200">
             <div>
               <h3 className="text-base font-bold text-slate-100 flex items-center gap-1.5">
-                <Key className="w-4 h-4 text-emerald-400" /> One-Click Auth or API Keys
+                <Key className="w-4 h-4 text-emerald-400" /> Connect API Keys or Auto-Detect
               </h3>
               <p className="text-xs text-slate-400 mt-1">
-                Authenticate via provider Web Dashboards or paste your API keys below:
+                StatusOwl automatically detects local session logs (<code className="text-slate-300">~/.claude/</code>, <code className="text-slate-300">~/.gemini/</code>). You can also generate &amp; paste API keys below:
               </p>
             </div>
 
-            {/* Quick Web Auth Buttons */}
+            {/* Direct API Key Generation Buttons */}
             <div className="grid grid-cols-2 gap-2 text-xs">
               <a
-                href="https://console.anthropic.com"
+                href="https://console.anthropic.com/settings/keys"
                 target="_blank"
                 rel="noreferrer"
-                className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 text-amber-300 flex items-center justify-between transition-colors font-semibold"
+                className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 text-amber-300 flex items-center justify-between transition-colors font-semibold"
               >
-                <span>Auth with Claude 🔑</span>
+                <span>Get Claude Key 🔑</span>
                 <ExternalLink className="w-3 h-3" />
               </a>
 
               <a
-                href="https://aistudio.google.com"
+                href="https://aistudio.google.com/app/apikey"
                 target="_blank"
                 rel="noreferrer"
-                className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/30 hover:bg-cyan-500/20 text-cyan-300 flex items-center justify-between transition-colors font-semibold"
+                className="p-2.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30 hover:bg-cyan-500/20 text-cyan-300 flex items-center justify-between transition-colors font-semibold"
               >
-                <span>Auth with Antigravity 🔑</span>
+                <span>Get Gemini Key 🔑</span>
                 <ExternalLink className="w-3 h-3" />
               </a>
 
@@ -180,19 +180,19 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                 href="https://console.x.ai"
                 target="_blank"
                 rel="noreferrer"
-                className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 hover:bg-emerald-500/20 text-emerald-300 flex items-center justify-between transition-colors font-semibold"
+                className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 hover:bg-emerald-500/20 text-emerald-300 flex items-center justify-between transition-colors font-semibold"
               >
-                <span>Auth with Grok 🔑</span>
+                <span>Get Grok Key 🔑</span>
                 <ExternalLink className="w-3 h-3" />
               </a>
 
               <a
-                href="https://platform.openai.com"
+                href="https://platform.openai.com/api-keys"
                 target="_blank"
                 rel="noreferrer"
-                className="p-2 rounded-xl bg-purple-500/10 border border-purple-500/30 hover:bg-purple-500/20 text-purple-300 flex items-center justify-between transition-colors font-semibold"
+                className="p-2.5 rounded-xl bg-purple-500/10 border border-purple-500/30 hover:bg-purple-500/20 text-purple-300 flex items-center justify-between transition-colors font-semibold"
               >
-                <span>Auth with Codex 🔑</span>
+                <span>Get Codex Key 🔑</span>
                 <ExternalLink className="w-3 h-3" />
               </a>
             </div>
@@ -202,7 +202,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                 <label className="text-amber-300 font-semibold font-mono text-[11px] block mb-1">Claude API Key (Optional):</label>
                 <input
                   type="password"
-                  placeholder="sk-ant-..."
+                  placeholder="sk-ant-... (or leave blank to use ~/.claude/ auto-detect)"
                   value={apiKeys.claude}
                   onChange={(e) => setApiKeys({ ...apiKeys, claude: e.target.value })}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 font-mono focus:border-emerald-500 focus:outline-none"
@@ -213,7 +213,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                 <label className="text-cyan-300 font-semibold font-mono text-[11px] block mb-1">Gemini Key (Optional):</label>
                 <input
                   type="password"
-                  placeholder="AIzaSy..."
+                  placeholder="AIzaSy... (or leave blank to use ~/.gemini/ auto-detect)"
                   value={apiKeys.antigravity}
                   onChange={(e) => setApiKeys({ ...apiKeys, antigravity: e.target.value })}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 font-mono focus:border-emerald-500 focus:outline-none"
