@@ -1,6 +1,6 @@
 import React from 'react';
 import { ProviderUsage } from '../types';
-import { Bot, Cpu, Sparkles, Terminal, Clock, RefreshCw, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Bot, Cpu, Sparkles, Terminal, Clock, RefreshCw, AlertTriangle, CheckCircle2, ExternalLink } from 'lucide-react';
 
 interface ProviderCardProps {
   provider: ProviderUsage;
@@ -8,6 +8,21 @@ interface ProviderCardProps {
 }
 
 export const ProviderCard: React.FC<ProviderCardProps> = ({ provider, onRefresh }) => {
+  const getProviderAuthUrl = (id: string) => {
+    switch (id) {
+      case 'claude':
+        return 'https://console.anthropic.com';
+      case 'antigravity':
+        return 'https://aistudio.google.com';
+      case 'grok':
+        return 'https://console.x.ai';
+      case 'codex':
+        return 'https://platform.openai.com';
+      default:
+        return 'https://github.com';
+    }
+  };
+
   const getProviderIcon = (id: string) => {
     switch (id) {
       case 'claude':
@@ -66,18 +81,18 @@ export const ProviderCard: React.FC<ProviderCardProps> = ({ provider, onRefresh 
   };
 
   return (
-    <div className="glass-card rounded-xl p-3.5 flex flex-col gap-2.5 transition-all">
+    <div className="glass-card rounded-xl p-3 flex flex-col gap-2 transition-all">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <div className="p-2 rounded-lg bg-slate-900/80 border border-slate-800">
+          <div className="p-2 rounded-lg bg-slate-900/90 border border-slate-800">
             {getProviderIcon(provider.id)}
           </div>
           <div>
             <h4 className="text-sm font-semibold text-slate-100 flex items-center gap-1.5">
               {provider.name}
             </h4>
-            <p className="text-[11px] text-slate-400">{provider.subtitle}</p>
+            <p className="text-[10px] text-slate-400">{provider.subtitle}</p>
           </div>
         </div>
         {getStatusBadge(provider.remainingPercent)}
@@ -86,10 +101,10 @@ export const ProviderCard: React.FC<ProviderCardProps> = ({ provider, onRefresh 
       {/* Progress Bar & Percentage */}
       <div>
         <div className="flex justify-between items-center text-xs mb-1">
-          <span className="text-slate-400 font-medium">Remaining Quota</span>
+          <span className="text-slate-400 font-medium text-[11px]">Remaining Quota</span>
           <span className="font-mono font-bold text-slate-100">{provider.remainingPercent}%</span>
         </div>
-        <div className="w-full h-2 rounded-full bg-slate-900/80 overflow-hidden p-0.5 border border-slate-800">
+        <div className="w-full h-2 rounded-full bg-slate-900/90 overflow-hidden p-0.5 border border-slate-800">
           <div
             className={`h-full rounded-full transition-all duration-500 ${getProgressColor(
               provider.remainingPercent
@@ -99,20 +114,30 @@ export const ProviderCard: React.FC<ProviderCardProps> = ({ provider, onRefresh 
         </div>
       </div>
 
-      {/* Details Footer */}
-      <div className="flex items-center justify-between pt-1 border-t border-slate-800/60 text-[11px] text-slate-400">
+      {/* Details & Auth Footer */}
+      <div className="flex items-center justify-between pt-1.5 border-t border-slate-800/60 text-[10px] text-slate-400">
         <div className="flex items-center gap-1 font-mono">
           <Clock className="w-3 h-3 text-slate-500" />
           <span>{formatTimer(provider.resetTimerSeconds)}</span>
         </div>
+
         <div className="flex items-center gap-2">
-          {provider.requestsLimit && (
-            <span className="font-mono text-slate-400">{provider.requestsLimit}</span>
-          )}
+          {/* One-Click Auth Web Link */}
+          <a
+            href={getProviderAuthUrl(provider.id)}
+            target="_blank"
+            rel="noreferrer"
+            className="px-2 py-0.5 rounded bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/60 text-[10px] text-cyan-300 hover:text-cyan-200 transition-colors flex items-center gap-1"
+            title={`Auth / Login with ${provider.name}`}
+          >
+            <span>Auth</span>
+            <ExternalLink className="w-2.5 h-2.5" />
+          </a>
+
           {onRefresh && (
             <button
               onClick={() => onRefresh(provider.id)}
-              className="p-1 hover:text-slate-200 transition-colors"
+              className="p-1 hover:text-slate-200 transition-colors text-slate-400"
               title="Refresh provider telemetry"
             >
               <RefreshCw className="w-3 h-3" />

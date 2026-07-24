@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Sparkles, Shield, Rocket, Key, ArrowRight, CheckCircle2, Bot, Terminal, Cpu } from 'lucide-react';
+import { X, Sparkles, Shield, Rocket, Key, ArrowRight, CheckCircle2, Bot, Terminal, Cpu, ExternalLink } from 'lucide-react';
 import { ProviderId } from '../types';
 
 interface OnboardingModalProps {
@@ -44,7 +44,6 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
             </div>
           </div>
 
-          {/* Stepper Dots */}
           <div className="flex items-center gap-1.5">
             <div className={`w-6 h-1.5 rounded-full transition-all ${step >= 1 ? 'bg-emerald-400' : 'bg-slate-800'}`} />
             <div className={`w-6 h-1.5 rounded-full transition-all ${step >= 2 ? 'bg-emerald-400' : 'bg-slate-800'}`} />
@@ -143,34 +142,67 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
           </div>
         )}
 
-        {/* Step 3: Real Telemetry & API Key Setup */}
+        {/* Step 3: Auth & Web Authentication Links */}
         {step === 3 && (
           <div className="p-6 flex flex-col gap-4 text-slate-200">
             <div>
               <h3 className="text-base font-bold text-slate-100 flex items-center gap-1.5">
-                <Key className="w-4 h-4 text-emerald-400" /> Setup Telemetry &amp; API Keys
+                <Key className="w-4 h-4 text-emerald-400" /> One-Click Auth or API Keys
               </h3>
               <p className="text-xs text-slate-400 mt-1">
-                StatusOwl automatically detects local session logs (<code className="text-slate-300">~/.claude/</code>, <code className="text-slate-300">~/.gemini/</code>). You can also enter custom API keys below:
+                Authenticate via provider Web Dashboards or paste your API keys below:
               </p>
             </div>
 
-            <div className="space-y-2.5 text-xs">
+            {/* Quick Web Auth Buttons */}
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <a
+                href="https://console.anthropic.com"
+                target="_blank"
+                rel="noreferrer"
+                className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 text-amber-300 flex items-center justify-between transition-colors font-semibold"
+              >
+                <span>Auth with Claude 🔑</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+
+              <a
+                href="https://aistudio.google.com"
+                target="_blank"
+                rel="noreferrer"
+                className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/30 hover:bg-cyan-500/20 text-cyan-300 flex items-center justify-between transition-colors font-semibold"
+              >
+                <span>Auth with Antigravity 🔑</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+
+              <a
+                href="https://console.x.ai"
+                target="_blank"
+                rel="noreferrer"
+                className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 hover:bg-emerald-500/20 text-emerald-300 flex items-center justify-between transition-colors font-semibold"
+              >
+                <span>Auth with Grok 🔑</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+
+              <a
+                href="https://platform.openai.com"
+                target="_blank"
+                rel="noreferrer"
+                className="p-2 rounded-xl bg-purple-500/10 border border-purple-500/30 hover:bg-purple-500/20 text-purple-300 flex items-center justify-between transition-colors font-semibold"
+              >
+                <span>Auth with Codex 🔑</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+
+            <div className="space-y-2 text-xs">
               <div>
-                <div className="flex justify-between items-center mb-1">
-                  <label className="text-amber-300 font-semibold font-mono text-[11px]">Claude Code (Anthropic Key):</label>
-                  <a
-                    href="https://console.anthropic.com/settings/keys"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-[10px] text-cyan-400 hover:underline"
-                  >
-                    Get API Key ↗
-                  </a>
-                </div>
+                <label className="text-amber-300 font-semibold font-mono text-[11px] block mb-1">Claude API Key (Optional):</label>
                 <input
                   type="password"
-                  placeholder="sk-ant-... (or leave blank to use ~/.claude/ auto-detect)"
+                  placeholder="sk-ant-..."
                   value={apiKeys.claude}
                   onChange={(e) => setApiKeys({ ...apiKeys, claude: e.target.value })}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 font-mono focus:border-emerald-500 focus:outline-none"
@@ -178,64 +210,12 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
               </div>
 
               <div>
-                <div className="flex justify-between items-center mb-1">
-                  <label className="text-cyan-300 font-semibold font-mono text-[11px]">Antigravity (Google Gemini Key):</label>
-                  <a
-                    href="https://aistudio.google.com/app/apikey"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-[10px] text-cyan-400 hover:underline"
-                  >
-                    Get API Key ↗
-                  </a>
-                </div>
+                <label className="text-cyan-300 font-semibold font-mono text-[11px] block mb-1">Gemini Key (Optional):</label>
                 <input
                   type="password"
-                  placeholder="AIzaSy... (or leave blank to use ~/.gemini/ auto-detect)"
+                  placeholder="AIzaSy..."
                   value={apiKeys.antigravity}
                   onChange={(e) => setApiKeys({ ...apiKeys, antigravity: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 font-mono focus:border-emerald-500 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <div className="flex justify-between items-center mb-1">
-                  <label className="text-emerald-300 font-semibold font-mono text-[11px]">xAI Grok API Key:</label>
-                  <a
-                    href="https://console.x.ai"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-[10px] text-cyan-400 hover:underline"
-                  >
-                    Get API Key ↗
-                  </a>
-                </div>
-                <input
-                  type="password"
-                  placeholder="xai-..."
-                  value={apiKeys.grok}
-                  onChange={(e) => setApiKeys({ ...apiKeys, grok: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 font-mono focus:border-emerald-500 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <div className="flex justify-between items-center mb-1">
-                  <label className="text-purple-300 font-semibold font-mono text-[11px]">OpenAI Codex Key:</label>
-                  <a
-                    href="https://platform.openai.com/api-keys"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-[10px] text-cyan-400 hover:underline"
-                  >
-                    Get API Key ↗
-                  </a>
-                </div>
-                <input
-                  type="password"
-                  placeholder="sk-proj-... (or leave blank for ~/.codex/ auto-detect)"
-                  value={apiKeys.codex}
-                  onChange={(e) => setApiKeys({ ...apiKeys, codex: e.target.value })}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 font-mono focus:border-emerald-500 focus:outline-none"
                 />
               </div>
