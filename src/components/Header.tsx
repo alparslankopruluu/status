@@ -1,11 +1,12 @@
 import React from 'react';
-import { ShieldCheck, Settings, RefreshCcw, Pin, Rocket, Move } from 'lucide-react';
+import { ShieldCheck, Settings, RefreshCcw, Pin, Rocket, HelpCircle, Move } from 'lucide-react';
 import { MascotState } from '../types';
 
 interface HeaderProps {
   healthScore: number;
   mascotState: MascotState;
   onOpenSettings: () => void;
+  onOpenOnboarding: () => void;
   onRefreshAll: () => void;
   displayMode: 'full' | 'widget' | 'flying-pet';
   onChangeDisplayMode: (mode: 'full' | 'widget' | 'flying-pet') => void;
@@ -15,6 +16,7 @@ export const Header: React.FC<HeaderProps> = ({
   healthScore,
   mascotState,
   onOpenSettings,
+  onOpenOnboarding,
   onRefreshAll,
   displayMode,
   onChangeDisplayMode,
@@ -83,24 +85,20 @@ export const Header: React.FC<HeaderProps> = ({
           <Rocket className="w-3.5 h-3.5" />
         </button>
 
-        {/* Compact Widget Mode */}
+        {/* Onboarding / Setup Help Guide */}
         <button
-          onClick={() => onChangeDisplayMode(displayMode === 'widget' ? 'full' : 'widget')}
-          className={`p-1 rounded-md border transition-colors ${
-            displayMode === 'widget'
-              ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
-              : 'bg-slate-800/80 text-slate-300 border-slate-700/60 hover:bg-slate-700/80'
-          }`}
-          title={displayMode === 'widget' ? 'Switch to Full View' : 'Switch to Compact Floating Desktop Widget'}
+          onClick={onOpenOnboarding}
+          className="p-1 rounded-md bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/60 text-slate-300 transition-colors"
+          title="View Setup & Onboarding Guide"
         >
-          <Pin className="w-3.5 h-3.5" />
+          <HelpCircle className="w-3.5 h-3.5 text-cyan-400" />
         </button>
 
         {/* Settings */}
         <button
           onClick={onOpenSettings}
           className="p-1 rounded-md bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/60 text-slate-300 transition-colors"
-          title="Settings"
+          title="Settings & API Keys"
         >
           <Settings className="w-3.5 h-3.5" />
         </button>

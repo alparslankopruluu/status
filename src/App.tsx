@@ -3,13 +3,15 @@ import { Header } from './components/Header';
 import { OwlMascot } from './components/OwlMascot';
 import { ProviderCard } from './components/ProviderCard';
 import { SettingsModal } from './components/SettingsModal';
+import { OnboardingModal } from './components/OnboardingModal';
+import { ProviderTelemetryService } from './services/providerService';
 import {
   ProviderUsage,
   ProviderId,
   MascotState,
   UserPreferences,
 } from './types';
-import { Activity, Sparkles, Maximize2, Move, Rocket } from 'lucide-react';
+import { Activity, Sparkles, Maximize2, Move, Rocket, Key } from 'lucide-react';
 
 const INITIAL_PROVIDERS: Record<ProviderId, ProviderUsage> = {
   claude: {
@@ -75,9 +77,24 @@ const DEFAULT_PREFERENCES: UserPreferences = {
 export default function App() {
   const [providers, setProviders] = useState<Record<ProviderId, ProviderUsage>>(INITIAL_PROVIDERS);
   const [preferences, setPreferences] = useState<UserPreferences>(DEFAULT_PREFERENCES);
+  const [apiKeys, setApiKeys] = useState<Record<ProviderId, string>>({
+    claude: '',
+    antigravity: '',
+    grok: '',
+    codex: '',
+  });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [displayMode, setDisplayMode] = useState<'full' | 'widget' | 'flying-pet'>('full');
   const [facingDirection, setFacingDirection] = useState<'left' | 'right'>('right');
+
+  // Check first-time onboarding
+  useEffect(() => {
+    const completed = localStorage.getItem('statusowl_onboarding_completed');
+    if (!completed) {
+      setIsOnboardingOpen(true);
+    }
+  }, []);
 
   const setMode = (mode: 'full' | 'widget' | 'flying-pet') => {
     setDisplayMode(mode);
@@ -116,7 +133,7 @@ export default function App() {
     } catch (e) {}
   }, []);
 
-  // Health score calculation
+  // Aggregate health score calculation
   const providerList = Object.values(providers);
   const totalPercent = providerList.reduce((sum, p) => sum + p.remainingPercent, 0);
   const overallHealthScore = Math.round(totalPercent / providerList.length);
@@ -136,27 +153,28 @@ export default function App() {
     ? Math.min(...lowProviders.map((p) => p.resetTimerSeconds))
     : 6240;
 
-  const handleRefreshAll = () => {
-    setProviders((prev) => {
-      const next = { ...prev };
-      (Object.keys(next) as ProviderId[]).forEach((key) => {
-        next[key] = {
-          ...next[key],
-          lastUpdated: 'Just now',
-        };
-      });
-      return next;
-    });
+  const handleRefreshAll = async () => {
+    const updated = { ...providers };
+    for (const key of Object.keys(updated) as ProviderId[]) {
+      updated[key] = await ProviderTelemetryService.fetchProviderMetrics(
+        key,
+        { apiKeys, customPaths: preferences.customPaths },
+        updated[key]
+      );
+    }
+    setProviders(updated);
   };
 
-  const handleRefreshSingle = (id: string) => {
+  const handleRefreshSingle = async (id: string) => {
     const key = id as ProviderId;
+    const refreshed = await ProviderTelemetryService.fetchProviderMetrics(
+      key,
+      { apiKeys, customPaths: preferences.customPaths },
+      providers[key]
+    );
     setProviders((prev) => ({
       ...prev,
-      [key]: {
-        ...prev[key],
-        lastUpdated: 'Just now',
-      },
+      [key]: refreshed,
     }));
   };
 
@@ -187,11 +205,10 @@ export default function App() {
       return next;
     });
 
-    // Automatically trigger 5-second status flight event on status change!
     trigger5sFlightEvent();
   };
 
-  // 🦅 PURE 5-SECOND FLYING MASCOT NOTIFICATION (Zero background box, zero text badges, ONLY the owl!)
+  // 🦅 PURE 5-SECOND FLYING MASCOT NOTIFICATION
   if (displayMode === 'flying-pet') {
     return (
       <div
@@ -277,6 +294,7 @@ export default function App() {
         healthScore={overallHealthScore}
         mascotState={mascotState}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenOnboarding={() => setIsOnboardingOpen(true)}
         onRefreshAll={handleRefreshAll}
         displayMode={displayMode}
         onChangeDisplayMode={(mode) => {
@@ -300,7 +318,7 @@ export default function App() {
           />
 
           <span className="text-[10px] text-slate-400 font-mono mt-0.5 opacity-75 hover:opacity-100 transition-opacity">
-            🚀 Click owl to change status &amp; trigger 5s desktop flight event!
+            🚀 Click owl to test 5s status change flight event!
           </span>
         </div>
 
@@ -313,7 +331,7 @@ export default function App() {
             onClick={() => setIsSettingsOpen(true)}
             className="text-[10px] font-mono text-cyan-400 hover:underline flex items-center gap-1"
           >
-            <Sparkles className="w-3 h-3" /> Config
+            <Key className="w-3 h-3" /> API Keys &amp; Paths
           </button>
         </div>
 
@@ -335,12 +353,23 @@ export default function App() {
         </span>
       </footer>
 
+      {/* Preferences Modal */}
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         preferences={preferences}
         onSavePreferences={(newPrefs) => setPreferences(newPrefs)}
         onSimulateState={handleSimulateState}
+      />
+
+      {/* Onboarding Wizard Modal */}
+      <OnboardingModal
+        isOpen={isOnboardingOpen}
+        onClose={() => setIsOnboardingOpen(false)}
+        onSaveApiKeys={(keys) => {
+          setApiKeys(keys);
+          handleRefreshAll();
+        }}
       />
     </div>
   );
