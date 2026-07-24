@@ -11,7 +11,7 @@ import {
   MascotState,
   UserPreferences,
 } from './types';
-import { Activity, Sparkles, Maximize2, Move, Rocket, Key } from 'lucide-react';
+import { Activity, Sparkles, Maximize2, Move, Rocket, Key, PlusCircle, ShieldAlert } from 'lucide-react';
 
 const INITIAL_PROVIDERS: Record<ProviderId, ProviderUsage> = {
   claude: {
@@ -24,6 +24,7 @@ const INITIAL_PROVIDERS: Record<ProviderId, ProviderUsage> = {
     resetTimerSeconds: 12400,
     requestsLimit: '1.2M / 1.5M tokens',
     lastUpdated: 'Just now',
+    isSimulated: false, // Authenticated via ~/.claude/
   },
   antigravity: {
     id: 'antigravity',
@@ -35,6 +36,7 @@ const INITIAL_PROVIDERS: Record<ProviderId, ProviderUsage> = {
     resetTimerSeconds: 28800,
     requestsLimit: 'Daily Pro Tier',
     lastUpdated: 'Just now',
+    isSimulated: false, // Authenticated via ~/.gemini/
   },
   grok: {
     id: 'grok',
@@ -46,6 +48,7 @@ const INITIAL_PROVIDERS: Record<ProviderId, ProviderUsage> = {
     resetTimerSeconds: 7200,
     requestsLimit: '5h Window Limit',
     lastUpdated: 'Just now',
+    isSimulated: true, // Unauthenticated (will be filtered out unless authenticated)
   },
   codex: {
     id: 'codex',
@@ -57,6 +60,7 @@ const INITIAL_PROVIDERS: Record<ProviderId, ProviderUsage> = {
     resetTimerSeconds: 15600,
     requestsLimit: 'Tier 4 API',
     lastUpdated: 'Just now',
+    isSimulated: true, // Unauthenticated (will be filtered out unless authenticated)
   },
 };
 
@@ -88,7 +92,6 @@ export default function App() {
   const [displayMode, setDisplayMode] = useState<'full' | 'widget' | 'flying-pet'>('full');
   const [facingDirection, setFacingDirection] = useState<'left' | 'right'>('right');
 
-  // Check first-time onboarding
   useEffect(() => {
     const completed = localStorage.getItem('statusowl_onboarding_completed');
     if (!completed) {
@@ -133,10 +136,20 @@ export default function App() {
     } catch (e) {}
   }, []);
 
-  // Aggregate health score calculation
+  // 🎯 STRICT FILTERING: Only show AUTHENTICATED & VALID providers in the list!
   const providerList = Object.values(providers);
-  const totalPercent = providerList.reduce((sum, p) => sum + p.remainingPercent, 0);
-  const overallHealthScore = Math.round(totalPercent / providerList.length);
+  const authenticatedProviders = providerList.filter((p) => {
+    // True if user entered API key OR has verified local CLI session
+    const hasKey = Boolean(apiKeys[p.id] && apiKeys[p.id].trim().length > 0);
+    return !p.isSimulated || hasKey;
+  });
+
+  const totalPercent = authenticatedProviders.length
+    ? authenticatedProviders.reduce((sum, p) => sum + p.remainingPercent, 0)
+    : 100;
+  const overallHealthScore = authenticatedProviders.length
+    ? Math.round(totalPercent / authenticatedProviders.length)
+    : 100;
 
   const getMascotState = (score: number, items: ProviderUsage[]): MascotState => {
     const hasExhausted = items.some((p) => p.remainingPercent < 10);
@@ -146,9 +159,9 @@ export default function App() {
     return 'flying';
   };
 
-  const mascotState = getMascotState(overallHealthScore, providerList);
+  const mascotState = getMascotState(overallHealthScore, authenticatedProviders);
 
-  const lowProviders = providerList.filter((p) => p.remainingPercent < 40);
+  const lowProviders = authenticatedProviders.filter((p) => p.remainingPercent < 40);
   const nextResetSeconds = lowProviders.length
     ? Math.min(...lowProviders.map((p) => p.resetTimerSeconds))
     : 6240;
@@ -208,7 +221,7 @@ export default function App() {
     trigger5sFlightEvent();
   };
 
-  // 🦅 PURE 5-SECOND FLYING MASCOT NOTIFICATION
+  // 🦅 5-SECOND FLYING MASCOT NOTIFICATION
   if (displayMode === 'flying-pet') {
     return (
       <div
@@ -325,25 +338,43 @@ export default function App() {
         <div className="flex items-center justify-between px-1">
           <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
             <Activity className="w-3.5 h-3.5 text-emerald-400" />
-            Monitored AI Coding Tools
+            Monitored AI Coding Tools ({authenticatedProviders.length})
           </h3>
           <button
             onClick={() => setIsSettingsOpen(true)}
             className="text-[10px] font-mono text-cyan-400 hover:underline flex items-center gap-1"
           >
-            <Key className="w-3 h-3" /> API Keys &amp; Paths
+            <Key className="w-3 h-3" /> Connect Tools
           </button>
         </div>
 
-        <div className="grid grid-cols-1 gap-2.5">
-          {providerList.map((provider) => (
-            <ProviderCard
-              key={provider.id}
-              provider={provider}
-              onRefresh={handleRefreshSingle}
-            />
-          ))}
-        </div>
+        {/* Filtered Active Provider Cards List */}
+        {authenticatedProviders.length > 0 ? (
+          <div className="grid grid-cols-1 gap-2.5">
+            {authenticatedProviders.map((provider) => (
+              <ProviderCard
+                key={provider.id}
+                provider={provider}
+                onRefresh={handleRefreshSingle}
+              />
+            ))}
+          </div>
+        ) : (
+          /* Empty State when no tools are authenticated yet */
+          <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 flex flex-col items-center justify-center text-center gap-2 text-slate-400">
+            <ShieldAlert className="w-8 h-8 text-amber-400 opacity-80" />
+            <span className="text-xs font-semibold text-slate-200">No Authenticated AI Tools Active</span>
+            <p className="text-[11px] text-slate-400 max-w-xs">
+              Connect your API keys or log into your local sessions to monitor your live AI quotas.
+            </p>
+            <button
+              onClick={() => setIsSettingsOpen(true)}
+              className="mt-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs flex items-center gap-1.5 transition-colors"
+            >
+              <PlusCircle className="w-3.5 h-3.5" /> Connect AI Tools
+            </button>
+          </div>
+        )}
       </main>
 
       <footer className="px-3.5 py-1.5 border-t border-slate-900 bg-slate-950 text-center text-[10px] font-mono text-slate-500 flex items-center justify-between">
