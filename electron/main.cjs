@@ -4,6 +4,7 @@ const path = require('path');
 let tray = null;
 let mainWindow = null;
 let flightInterval = null;
+let flightTimeout = null;
 let isFlying = false;
 
 const TRAY_ICON_BASE64 =
@@ -30,7 +31,7 @@ function createWindow() {
   mainWindow.loadFile(indexPath);
 
   mainWindow.on('blur', () => {
-    // Keep window active during flight
+    // Blur behavior
   });
 }
 
@@ -51,31 +52,45 @@ function positionWindowNearTray() {
   mainWindow.setPosition(x, y, false);
 }
 
-// 🦅 Autonomous Desktop Flight Engine
 function stopFlyingAnimation() {
   if (flightInterval) {
     clearInterval(flightInterval);
     flightInterval = null;
   }
+  if (flightTimeout) {
+    clearTimeout(flightTimeout);
+    flightTimeout = null;
+  }
   isFlying = false;
 }
 
-function startFlyingAnimation() {
-  if (isFlying || !mainWindow) return;
+// 🦅 5-Second Flying Status Notification Engine
+function trigger5SecondFlightNotification(statusMode = 'flying') {
+  stopFlyingAnimation();
+  if (!mainWindow) return;
+
   isFlying = true;
+  mainWindow.setHasShadow(false);
+  mainWindow.setSize(130, 130);
+  mainWindow.show();
+
+  if (mainWindow.webContents) {
+    mainWindow.webContents.send('set-mode', 'flying-pet');
+  }
 
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
 
-  let currentBounds = mainWindow.getBounds();
-  let currX = currentBounds.x;
-  let currY = currentBounds.y;
+  let currX = Math.floor(Math.random() * (screenWidth - 300)) + 100;
+  let currY = Math.floor(screenHeight * 0.4);
+  mainWindow.setPosition(currX, currY, false);
 
-  let targetX = Math.floor(Math.random() * (screenWidth - 150)) + 30;
-  let targetY = Math.floor(Math.random() * (screenHeight - 200)) + 50;
+  // Target destination near top corner (menu bar)
+  const targetX = screenWidth - 160;
+  const targetY = 10;
 
   let stepCount = 0;
-  const speed = 2.5; // Flying speed pixels/frame
+  const speed = 4; // Fast graceful 5-second flight across desktop
 
   flightInterval = setInterval(() => {
     if (!isFlying || !mainWindow) return;
@@ -85,32 +100,33 @@ function startFlyingAnimation() {
     const dy = targetY - currY;
     const dist = Math.sqrt(dx * dx + dy * dy);
 
-    if (dist < 15) {
-      // Pick new flight target destination after brief rest
-      setTimeout(() => {
-        if (isFlying) {
-          targetX = Math.floor(Math.random() * (screenWidth - 150)) + 30;
-          targetY = Math.floor(Math.random() * (screenHeight - 200)) + 50;
-        }
-      }, 2500);
+    if (dist < 20) {
+      // Reached corner: finish flight & vanish smoothly!
+      stopFlyingAnimation();
+      mainWindow.hide();
     } else {
       const vx = (dx / dist) * speed;
       const vy = (dy / dist) * speed;
-
-      // Add gentle flight sine-wave float
-      const sineWave = Math.sin(stepCount * 0.15) * 1.5;
+      const sineWave = Math.sin(stepCount * 0.2) * 2;
 
       currX += vx;
       currY += vy + sineWave;
 
       mainWindow.setPosition(Math.round(currX), Math.round(currY), false);
 
-      // Notify renderer of flight direction (facing left or right)
       if (mainWindow.webContents) {
         mainWindow.webContents.send('flight-facing', vx >= 0 ? 'right' : 'left');
       }
     }
-  }, 25); // ~40 FPS smooth motion
+  }, 25);
+
+  // Hard cap at 5 seconds -> disappear into corner
+  flightTimeout = setTimeout(() => {
+    stopFlyingAnimation();
+    if (mainWindow && mainWindow.isVisible()) {
+      mainWindow.hide();
+    }
+  }, 5200);
 }
 
 function createTray() {
@@ -120,7 +136,7 @@ function createTray() {
     tray = new Tray(icon);
 
     if (process.platform === 'darwin') {
-      tray.setTitle(' 🦉 78%');
+      tray.setTitle(' 🦉 85%');
     }
 
     const contextMenu = Menu.buildFromTemplate([
@@ -139,15 +155,9 @@ function createTray() {
         },
       },
       {
-        label: '🚀 Fly Mascot Across Desktop',
+        label: '✨ Test 5s Status Flight Event',
         click: () => {
-          if (mainWindow) {
-            mainWindow.setHasShadow(false);
-            mainWindow.setSize(140, 140);
-            mainWindow.show();
-            mainWindow.webContents.send('set-mode', 'flying-pet');
-            startFlyingAnimation();
-          }
+          trigger5SecondFlightNotification('flying');
         },
       },
       { type: 'separator' },
@@ -182,14 +192,11 @@ function createTray() {
   }
 }
 
-// IPC Listener
+// IPC Listeners
 ipcMain.on('set-window-size', (event, mode) => {
   if (!mainWindow) return;
   if (mode === 'flying-pet') {
-    stopFlyingAnimation();
-    mainWindow.setHasShadow(false);
-    mainWindow.setSize(140, 140);
-    startFlyingAnimation();
+    trigger5SecondFlightNotification('flying');
   } else if (mode === 'widget') {
     stopFlyingAnimation();
     mainWindow.setHasShadow(true);
@@ -199,6 +206,10 @@ ipcMain.on('set-window-size', (event, mode) => {
     mainWindow.setHasShadow(true);
     mainWindow.setSize(380, 600);
   }
+});
+
+ipcMain.on('trigger-5s-flight', (event, statusMode) => {
+  trigger5SecondFlightNotification(statusMode);
 });
 
 app.whenReady().then(() => {

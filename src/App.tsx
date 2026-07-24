@@ -79,7 +79,6 @@ export default function App() {
   const [displayMode, setDisplayMode] = useState<'full' | 'widget' | 'flying-pet'>('full');
   const [facingDirection, setFacingDirection] = useState<'left' | 'right'>('right');
 
-  // Electron IPC window sizing & direction handling
   const setMode = (mode: 'full' | 'widget' | 'flying-pet') => {
     setDisplayMode(mode);
     try {
@@ -88,6 +87,19 @@ export default function App() {
         ipcRenderer.send('set-window-size', mode);
       }
     } catch (e) {}
+  };
+
+  const trigger5sFlightEvent = () => {
+    try {
+      if (window.require) {
+        const { ipcRenderer } = window.require('electron');
+        ipcRenderer.send('trigger-5s-flight', mascotState);
+      } else {
+        setMode('flying-pet');
+      }
+    } catch (e) {
+      setMode('flying-pet');
+    }
   };
 
   useEffect(() => {
@@ -104,7 +116,7 @@ export default function App() {
     } catch (e) {}
   }, []);
 
-  // Health score computation
+  // Health score calculation
   const providerList = Object.values(providers);
   const totalPercent = providerList.reduce((sum, p) => sum + p.remainingPercent, 0);
   const overallHealthScore = Math.round(totalPercent / providerList.length);
@@ -174,16 +186,19 @@ export default function App() {
       }
       return next;
     });
+
+    // Automatically trigger 5-second status flight event on status change!
+    trigger5sFlightEvent();
   };
 
-  // 🦅 REAL FLYING DESKTOP PET MODE (Zero background, zero text, ONLY the flying owl)
+  // 🦅 PURE 5-SECOND FLYING MASCOT NOTIFICATION (Zero background box, zero text badges, ONLY the owl!)
   if (displayMode === 'flying-pet') {
     return (
       <div
         data-tauri-drag-region
         className="w-full h-screen bg-transparent flex items-center justify-center cursor-pointer select-none overflow-hidden"
         onClick={() => setMode('full')}
-        title="Click Hooty to expand AI Quota Status Panel!"
+        title="Click Hooty to open full Status Panel!"
       >
         <div
           className={`transition-transform duration-300 ${
@@ -194,6 +209,7 @@ export default function App() {
             state={mascotState}
             healthScore={overallHealthScore}
             nextResetSeconds={nextResetSeconds}
+            hideBadge={true}
           />
         </div>
       </div>
@@ -213,9 +229,9 @@ export default function App() {
           </span>
           <div className="flex items-center gap-1">
             <button
-              onClick={() => setMode('flying-pet')}
+              onClick={trigger5sFlightEvent}
               className="p-1 rounded-md bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 transition-colors"
-              title="Fly Mascot Across Desktop"
+              title="Trigger 5s Status Flight Event"
             >
               <Rocket className="w-3.5 h-3.5" />
             </button>
@@ -263,7 +279,10 @@ export default function App() {
         onOpenSettings={() => setIsSettingsOpen(true)}
         onRefreshAll={handleRefreshAll}
         displayMode={displayMode}
-        onChangeDisplayMode={(mode) => setMode(mode)}
+        onChangeDisplayMode={(mode) => {
+          if (mode === 'flying-pet') trigger5sFlightEvent();
+          else setMode(mode);
+        }}
       />
 
       <main className="flex-1 p-3 flex flex-col gap-3 overflow-y-auto">
@@ -281,7 +300,7 @@ export default function App() {
           />
 
           <span className="text-[10px] text-slate-400 font-mono mt-0.5 opacity-75 hover:opacity-100 transition-opacity">
-            🚀 Click 🚀 button in header to let Hooty fly freely across your desktop!
+            🚀 Click owl to change status &amp; trigger 5s desktop flight event!
           </span>
         </div>
 
@@ -310,7 +329,7 @@ export default function App() {
       </main>
 
       <footer className="px-3.5 py-1.5 border-t border-slate-900 bg-slate-950 text-center text-[10px] font-mono text-slate-500 flex items-center justify-between">
-        <span>macOS &amp; Windows Desktop Pet</span>
+        <span>macOS &amp; Windows Status Bar</span>
         <span className="text-emerald-400/90 flex items-center gap-1">
           <Sparkles className="w-3 h-3" /> StatusOwl Active
         </span>

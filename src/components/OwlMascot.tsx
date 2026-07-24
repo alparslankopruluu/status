@@ -5,6 +5,7 @@ interface OwlMascotProps {
   state: MascotState;
   healthScore: number;
   nextResetSeconds?: number;
+  hideBadge?: boolean;
   onClick?: () => void;
 }
 
@@ -12,6 +13,7 @@ export const OwlMascot: React.FC<OwlMascotProps> = ({
   state,
   healthScore,
   nextResetSeconds = 6240,
+  hideBadge = false,
   onClick,
 }) => {
   const formatTimer = (seconds: number) => {
@@ -25,24 +27,24 @@ export const OwlMascot: React.FC<OwlMascotProps> = ({
   return (
     <div
       onClick={onClick}
-      className="relative flex flex-col items-center justify-center p-2 cursor-pointer group select-none transition-all duration-300 my-1"
+      className="relative flex flex-col items-center justify-center p-0 bg-transparent cursor-pointer group select-none transition-all duration-300"
     >
       {/* Glow Aura Background */}
       <div
-        className={`absolute inset-0 rounded-full blur-3xl opacity-30 transition-all duration-500 pointer-events-none ${
+        className={`absolute inset-0 rounded-full blur-2xl opacity-25 transition-all duration-500 pointer-events-none ${
           state === 'flying'
-            ? 'bg-emerald-400 scale-125'
+            ? 'bg-emerald-400 scale-110'
             : state === 'alert'
-            ? 'bg-amber-400 scale-110'
+            ? 'bg-amber-400 scale-100'
             : state === 'tired'
-            ? 'bg-orange-500 scale-100'
-            : 'bg-purple-600 scale-110 animate-pulse'
+            ? 'bg-orange-500 scale-95'
+            : 'bg-purple-600 scale-105 animate-pulse'
         }`}
       />
 
-      {/* SVG Canvas Container with Ample Vertical Padding */}
+      {/* SVG Canvas Container */}
       <div
-        className={`relative z-10 py-1 transition-transform duration-500 ${
+        className={`relative z-10 py-0 transition-transform duration-500 ${
           state === 'flying'
             ? 'animate-float-slow'
             : state === 'tired'
@@ -268,38 +270,40 @@ export const OwlMascot: React.FC<OwlMascotProps> = ({
         </svg>
       </div>
 
-      {/* Mascot Status Badge */}
-      <div className="mt-1 flex flex-col items-center">
-        <div
-          className={`px-3 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 shadow-lg border transition-colors ${
-            state === 'flying'
-              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-              : state === 'alert'
-              ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-              : state === 'tired'
-              ? 'bg-orange-500/20 text-orange-300 border-orange-500/40'
-              : 'bg-purple-500/20 text-purple-300 border-purple-500/40'
-          }`}
-        >
-          <span className="w-1.5 h-1.5 rounded-full animate-ping bg-current" />
-          <span>
-            {state === 'flying'
-              ? 'Healthy Quota (>70%)'
-              : state === 'alert'
-              ? 'Normal Usage (30-70%)'
-              : state === 'tired'
-              ? 'Low Quota (<30%)'
-              : 'Rate Limited (<10%)'}
-          </span>
-        </div>
-
-        {(state === 'sleeping' || state === 'tired') && (
-          <div className="mt-1 px-2.5 py-0.5 rounded-md bg-slate-900/90 text-[10px] font-mono text-purple-300 border border-purple-500/30 shadow flex items-center gap-1">
-            <span>⏳</span>
-            <span>{formatTimer(nextResetSeconds)}</span>
+      {/* Mascot Status Badge (Hidden when hideBadge=true for pure mascot flight) */}
+      {!hideBadge && (
+        <div className="mt-1 flex flex-col items-center">
+          <div
+            className={`px-3 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 shadow-lg border transition-colors ${
+              state === 'flying'
+                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                : state === 'alert'
+                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                : state === 'tired'
+                ? 'bg-orange-500/20 text-orange-300 border-orange-500/40'
+                : 'bg-purple-500/20 text-purple-300 border-purple-500/40'
+            }`}
+          >
+            <span className="w-1.5 h-1.5 rounded-full animate-ping bg-current" />
+            <span>
+              {state === 'flying'
+                ? 'Healthy Quota (>70%)'
+                : state === 'alert'
+                ? 'Normal Usage (30-70%)'
+                : state === 'tired'
+                ? 'Low Quota (<30%)'
+                : 'Rate Limited (<10%)'}
+            </span>
           </div>
-        )}
-      </div>
+
+          {(state === 'sleeping' || state === 'tired') && (
+            <div className="mt-1 px-2.5 py-0.5 rounded-md bg-slate-900/90 text-[10px] font-mono text-purple-300 border border-purple-500/30 shadow flex items-center gap-1">
+              <span>⏳</span>
+              <span>{formatTimer(nextResetSeconds)}</span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
