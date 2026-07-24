@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShieldCheck, Settings, RefreshCcw, Minus, X, Pin, Sparkles, Move } from 'lucide-react';
+import { ShieldCheck, Settings, RefreshCcw, Pin, Rocket, Move } from 'lucide-react';
 import { MascotState } from '../types';
 
 interface HeaderProps {
@@ -7,8 +7,8 @@ interface HeaderProps {
   mascotState: MascotState;
   onOpenSettings: () => void;
   onRefreshAll: () => void;
-  isWidgetMode: boolean;
-  onToggleWidgetMode: () => void;
+  displayMode: 'full' | 'widget' | 'flying-pet';
+  onChangeDisplayMode: (mode: 'full' | 'widget' | 'flying-pet') => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -16,13 +16,13 @@ export const Header: React.FC<HeaderProps> = ({
   mascotState,
   onOpenSettings,
   onRefreshAll,
-  isWidgetMode,
-  onToggleWidgetMode,
+  displayMode,
+  onChangeDisplayMode,
 }) => {
   return (
     <header
       data-tauri-drag-region
-      className="px-3.5 py-2.5 border-b border-slate-800/80 bg-slate-900/80 backdrop-blur-md flex items-center justify-between select-none cursor-move rounded-t-2xl"
+      className="px-3.5 py-2 border-b border-slate-800/80 bg-slate-900/90 backdrop-blur-md flex items-center justify-between select-none cursor-move rounded-t-2xl"
     >
       {/* Title & Drag handle */}
       <div data-tauri-drag-region className="flex items-center gap-2">
@@ -70,15 +70,28 @@ export const Header: React.FC<HeaderProps> = ({
           <RefreshCcw className="w-3.5 h-3.5" />
         </button>
 
-        {/* Toggle Floating Desktop Widget Mode */}
+        {/* Fly Mascot on Desktop */}
         <button
-          onClick={onToggleWidgetMode}
+          onClick={() => onChangeDisplayMode('flying-pet')}
+          className={`p-1 rounded-md border transition-all ${
+            displayMode === 'flying-pet'
+              ? 'bg-purple-500/20 text-purple-300 border-purple-500/40 glow-purple'
+              : 'bg-slate-800/80 text-slate-300 border-slate-700/60 hover:bg-slate-700/80 hover:text-purple-300'
+          }`}
+          title="🚀 Fly Owl Mascot on Desktop Screen!"
+        >
+          <Rocket className="w-3.5 h-3.5" />
+        </button>
+
+        {/* Compact Widget Mode */}
+        <button
+          onClick={() => onChangeDisplayMode(displayMode === 'widget' ? 'full' : 'widget')}
           className={`p-1 rounded-md border transition-colors ${
-            isWidgetMode
+            displayMode === 'widget'
               ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
               : 'bg-slate-800/80 text-slate-300 border-slate-700/60 hover:bg-slate-700/80'
           }`}
-          title={isWidgetMode ? 'Switch to Full View' : 'Switch to Compact Floating Desktop Widget'}
+          title={displayMode === 'widget' ? 'Switch to Full View' : 'Switch to Compact Floating Desktop Widget'}
         >
           <Pin className="w-3.5 h-3.5" />
         </button>

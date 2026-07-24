@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Header } from './components/Header';
 import { OwlMascot } from './components/OwlMascot';
 import { ProviderCard } from './components/ProviderCard';
@@ -9,7 +9,7 @@ import {
   MascotState,
   UserPreferences,
 } from './types';
-import { Activity, Sparkles, Maximize2, Move, Key } from 'lucide-react';
+import { Activity, Sparkles, Maximize2, Move, Rocket } from 'lucide-react';
 
 const INITIAL_PROVIDERS: Record<ProviderId, ProviderUsage> = {
   claude: {
@@ -76,14 +76,37 @@ export default function App() {
   const [providers, setProviders] = useState<Record<ProviderId, ProviderUsage>>(INITIAL_PROVIDERS);
   const [preferences, setPreferences] = useState<UserPreferences>(DEFAULT_PREFERENCES);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isWidgetMode, setIsWidgetMode] = useState(false);
+  const [displayMode, setDisplayMode] = useState<'full' | 'widget' | 'flying-pet'>('full');
 
-  // Aggregate health calculation
+  // Electron window resizing integration
+  const setMode = (mode: 'full' | 'widget' | 'flying-pet') => {
+    setDisplayMode(mode);
+    try {
+      if (window.require) {
+        const { ipcRenderer } = window.require('electron');
+        ipcRenderer.send('set-window-size', mode);
+      }
+    } catch (e) {
+      // Non-electron web fallback
+    }
+  };
+
+  useEffect(() => {
+    try {
+      if (window.require) {
+        const { ipcRenderer } = window.require('electron');
+        ipcRenderer.on('set-mode', (_: any, mode: 'full' | 'widget' | 'flying-pet') => {
+          setDisplayMode(mode);
+        });
+      }
+    } catch (e) {}
+  }, []);
+
+  // Health score computation
   const providerList = Object.values(providers);
   const totalPercent = providerList.reduce((sum, p) => sum + p.remainingPercent, 0);
   const overallHealthScore = Math.round(totalPercent / providerList.length);
 
-  // Dynamic mascot state calculation
   const getMascotState = (score: number, items: ProviderUsage[]): MascotState => {
     const hasExhausted = items.some((p) => p.remainingPercent < 10);
     if (hasExhausted || score < 15) return 'sleeping';
@@ -151,31 +174,83 @@ export default function App() {
     });
   };
 
-  // Compact Floating Desktop Mascot Widget View
-  if (isWidgetMode) {
+  // 🚀 Flying Desktop Pet Mode
+  if (displayMode === 'flying-pet') {
     return (
       <div
         data-tauri-drag-region
-        className="w-full h-screen bg-slate-950/90 backdrop-blur-2xl border border-slate-800/80 rounded-3xl p-3 flex flex-col items-center justify-between cursor-move select-none shadow-2xl overflow-hidden group"
+        className="w-full h-screen bg-transparent flex flex-col items-center justify-center cursor-move select-none overflow-hidden group relative"
+      >
+        {/* Floating Controls Overlay on Hover */}
+        <div
+          data-tauri-drag-region
+          className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900/90 border border-slate-700/80 rounded-full p-1 flex items-center gap-1 shadow-lg z-30"
+        >
+          <button
+            onClick={() => setMode('full')}
+            className="p-1 rounded-full bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 transition-colors"
+            title="Expand Full Status Panel"
+          >
+            <Maximize2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {/* Flying Owl Mascot */}
+        <div
+          onClick={() => setMode('full')}
+          className="hover:scale-105 transition-transform duration-300 relative"
+          title="Click to open status panel | Drag to move Hooty around screen"
+        >
+          <OwlMascot
+            state={mascotState}
+            healthScore={overallHealthScore}
+            nextResetSeconds={nextResetSeconds}
+          />
+        </div>
+
+        {/* Flying Badge Indicator */}
+        <div data-tauri-drag-region className="mt-0.5 px-2 py-0.5 rounded-full bg-slate-950/90 border border-slate-800 text-[10px] font-mono text-cyan-300 shadow flex items-center gap-1">
+          <Rocket className="w-3 h-3 text-emerald-400 animate-pulse" />
+          <span>{overallHealthScore}%</span>
+        </div>
+      </div>
+    );
+  }
+
+  // 📌 Compact Widget Mode
+  if (displayMode === 'widget') {
+    return (
+      <div
+        data-tauri-drag-region
+        className="w-full h-screen bg-slate-950/95 backdrop-blur-2xl border border-slate-800/80 rounded-3xl p-3 flex flex-col items-center justify-between cursor-move select-none shadow-2xl overflow-hidden group"
       >
         <div data-tauri-drag-region className="w-full flex items-center justify-between px-2 pt-1 text-[10px] text-slate-400">
           <span data-tauri-drag-region className="flex items-center gap-1 font-bold text-slate-300">
             <Move className="w-3 h-3 text-cyan-400" /> Desktop Mascot
           </span>
-          <button
-            onClick={() => setIsWidgetMode(false)}
-            className="p-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors"
-            title="Expand Full Panel"
-          >
-            <Maximize2 className="w-3.5 h-3.5" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setMode('flying-pet')}
+              className="p-1 rounded-md bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 transition-colors"
+              title="Fly Mascot on Desktop"
+            >
+              <Rocket className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => setMode('full')}
+              className="p-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors"
+              title="Expand Full Panel"
+            >
+              <Maximize2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
 
         <OwlMascot
           state={mascotState}
           healthScore={overallHealthScore}
           nextResetSeconds={nextResetSeconds}
-          onClick={() => setIsWidgetMode(false)}
+          onClick={() => setMode('full')}
         />
 
         <div data-tauri-drag-region className="pb-1 text-[11px] font-mono text-center">
@@ -196,22 +271,19 @@ export default function App() {
     );
   }
 
-  // Full Desktop Popover View
+  // 🖥️ Full Desktop Popover View
   return (
     <div className="h-screen w-full bg-slate-950/95 text-slate-100 flex flex-col antialiased border border-slate-800/80 rounded-2xl overflow-hidden shadow-2xl">
-      {/* Header Bar */}
       <Header
         healthScore={overallHealthScore}
         mascotState={mascotState}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onRefreshAll={handleRefreshAll}
-        isWidgetMode={isWidgetMode}
-        onToggleWidgetMode={() => setIsWidgetMode(true)}
+        displayMode={displayMode}
+        onChangeDisplayMode={(mode) => setMode(mode)}
       />
 
-      {/* Main Scrollable Content */}
       <main className="flex-1 p-3 flex flex-col gap-3 overflow-y-auto">
-        {/* Mascot Hero Card (Overflow Visible to avoid cutoff) */}
         <div className="glass-panel rounded-2xl p-2.5 flex flex-col items-center justify-center relative overflow-visible shadow-xl border border-slate-800/80">
           <OwlMascot
             state={mascotState}
@@ -226,11 +298,10 @@ export default function App() {
           />
 
           <span className="text-[10px] text-slate-400 font-mono mt-0.5 opacity-75 hover:opacity-100 transition-opacity">
-            💡 Click owl to test mascot state animations
+            🚀 Click 🚀 button in header to release Hooty to fly on your desktop screen!
           </span>
         </div>
 
-        {/* AI Tools Section Title */}
         <div className="flex items-center justify-between px-1">
           <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
             <Activity className="w-3.5 h-3.5 text-emerald-400" />
@@ -240,11 +311,10 @@ export default function App() {
             onClick={() => setIsSettingsOpen(true)}
             className="text-[10px] font-mono text-cyan-400 hover:underline flex items-center gap-1"
           >
-            <Key className="w-3 h-3" /> API Keys / Paths
+            <Sparkles className="w-3 h-3" /> Config
           </button>
         </div>
 
-        {/* Provider Cards List */}
         <div className="grid grid-cols-1 gap-2.5">
           {providerList.map((provider) => (
             <ProviderCard
@@ -256,15 +326,13 @@ export default function App() {
         </div>
       </main>
 
-      {/* Footer Bar */}
       <footer className="px-3.5 py-1.5 border-t border-slate-900 bg-slate-950 text-center text-[10px] font-mono text-slate-500 flex items-center justify-between">
-        <span>macOS &amp; Windows Native Bar</span>
+        <span>macOS &amp; Windows Desktop Pet</span>
         <span className="text-emerald-400/90 flex items-center gap-1">
           <Sparkles className="w-3 h-3" /> StatusOwl Active
         </span>
       </footer>
 
-      {/* Preferences & API Key Modal */}
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
