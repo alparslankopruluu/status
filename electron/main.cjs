@@ -28,18 +28,16 @@ function createWindow() {
   }
 
   mainWindow.on('blur', () => {
-    // Optionally hide when losing focus if desired
+    // Keep desktop popover focus state
   });
 }
 
 function createTray() {
-  // Simple tray icon fallback
-  const iconPath = path.join(__dirname, 'icon.png');
+  const iconPath = path.join(__dirname, '../public/owl-icon.svg');
   try {
     tray = new Tray(iconPath);
   } catch (e) {
-    // Fallback if icon png doesn't exist
-    tray = new Tray(path.join(__dirname, '../public/owl-icon.svg'));
+    tray = new Tray(path.join(__dirname, '../dist/index.html'));
   }
 
   const contextMenu = Menu.buildFromTemplate([
@@ -48,12 +46,6 @@ function createTray() {
       click: () => {
         mainWindow.show();
         mainWindow.focus();
-      },
-    },
-    {
-      label: 'Toggle Desktop Mascot Widget',
-      click: () => {
-        mainWindow.webContents.send('toggle-widget-mode');
       },
     },
     { type: 'separator' },
