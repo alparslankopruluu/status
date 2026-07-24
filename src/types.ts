@@ -16,6 +16,9 @@ export interface ProviderUsage {
   maxTokens?: number;
   requestsLimit?: string;
   lastUpdated: string;
+  /** True once a real API key format or a local CLI session folder has been verified. */
+  isAuthenticated?: boolean;
+  /** True when remainingPercent is a placeholder/estimate rather than a verified live number. */
   isSimulated?: boolean;
   notes?: string;
 }

@@ -99,12 +99,15 @@ export const ProviderCard: React.FC<ProviderCardProps> = ({ provider, onRefresh 
         {getStatusBadge(provider.remainingPercent)}
       </div>
 
-      {/* Authentication Status Connection Pill */}
-      <div className="flex items-center justify-between px-2 py-1 rounded-lg bg-slate-950/80 border border-slate-800/80 text-[10px]">
+      {/* Authentication Status Connection Pill — honest, no fabricated "Live" claim */}
+      <div
+        className="flex items-center justify-between px-2 py-1 rounded-lg bg-slate-950/80 border border-slate-800/80 text-[10px]"
+        title={provider.notes}
+      >
         <div className="flex items-center gap-1.5">
-          <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-          <span className="font-semibold text-emerald-300">
-            {provider.isSimulated ? '🟡 Mock Data Mode' : '🟢 Live Authenticated Session'}
+          <ShieldCheck className={`w-3.5 h-3.5 ${provider.isAuthenticated ? 'text-emerald-400' : 'text-amber-400'}`} />
+          <span className={`font-semibold ${provider.isAuthenticated ? 'text-emerald-300' : 'text-amber-300'}`}>
+            {provider.isAuthenticated ? '🟢 Session Verified' : '🟡 Not Connected'}
           </span>
         </div>
         <span className="font-mono text-slate-400 text-[9px]">{provider.lastUpdated}</span>
@@ -113,7 +116,9 @@ export const ProviderCard: React.FC<ProviderCardProps> = ({ provider, onRefresh 
       {/* Progress Bar & Percentage */}
       <div>
         <div className="flex justify-between items-center text-xs mb-1">
-          <span className="text-slate-400 font-medium text-[11px]">Remaining Quota</span>
+          <span className="text-slate-400 font-medium text-[11px]">
+            Remaining Quota {provider.isSimulated && <span className="text-slate-500">(estimated)</span>}
+          </span>
           <span className="font-mono font-bold text-slate-100">{provider.remainingPercent}%</span>
         </div>
         <div className="w-full h-2 rounded-full bg-slate-900/90 overflow-hidden p-0.5 border border-slate-800">

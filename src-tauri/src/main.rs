@@ -9,46 +9,53 @@ use tauri::{
 };
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct ProviderStatus {
-    pub id: String,
-    pub name: String,
-    pub remaining_percent: u32,
-    pub status: String,
-    pub reset_timer_seconds: u32,
+pub struct LocalSessionInfo {
+    pub exists: bool,
+    pub path: String,
+    pub entries: usize,
 }
 
+/// Checks whether a given AI provider's local CLI/IDE session directory actually
+/// exists and is non-empty. This is honest presence detection only — these tools
+/// don't expose a documented on-disk format for exact quota numbers, so we never
+/// fabricate a percentage from what we find here.
 #[tauri::command]
-fn get_usage_summary() -> Vec<ProviderStatus> {
-    vec![
-        ProviderStatus {
-            id: "claude".into(),
-            name: "Claude Code".into(),
-            remaining_percent: 85,
-            status: "healthy".into(),
-            reset_timer_seconds: 12400,
+fn detect_local_session(provider: String) -> LocalSessionInfo {
+    let relative_path = match provider.as_str() {
+        "claude" => Some(".claude"),
+        "antigravity" => Some(".gemini/antigravity-ide"),
+        "grok" => Some(".grok"),
+        "codex" => Some(".codex"),
+        _ => None,
+    };
+
+    let full_path = match (dirs::home_dir(), relative_path) {
+        (Some(home), Some(rel)) => Some(home.join(rel)),
+        _ => None,
+    };
+
+    match full_path {
+        Some(path) => {
+            let path_str = path.to_string_lossy().to_string();
+            match std::fs::read_dir(&path) {
+                Ok(read_dir) => LocalSessionInfo {
+                    exists: true,
+                    path: path_str,
+                    entries: read_dir.count(),
+                },
+                Err(_) => LocalSessionInfo {
+                    exists: false,
+                    path: path_str,
+                    entries: 0,
+                },
+            }
+        }
+        None => LocalSessionInfo {
+            exists: false,
+            path: String::new(),
+            entries: 0,
         },
-        ProviderStatus {
-            id: "antigravity".into(),
-            name: "Antigravity (Gemini)".into(),
-            remaining_percent: 92,
-            status: "healthy".into(),
-            reset_timer_seconds: 28800,
-        },
-        ProviderStatus {
-            id: "grok".into(),
-            name: "xAI Grok".into(),
-            remaining_percent: 78,
-            status: "healthy".into(),
-            reset_timer_seconds: 7200,
-        },
-        ProviderStatus {
-            id: "codex".into(),
-            name: "OpenAI Codex".into(),
-            remaining_percent: 64,
-            status: "healthy".into(),
-            reset_timer_seconds: 15600,
-        },
-    ]
+    }
 }
 
 #[tauri::command]
@@ -112,7 +119,7 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            get_usage_summary,
+            detect_local_session,
             hide_window,
             toggle_always_on_top
         ])

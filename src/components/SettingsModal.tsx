@@ -1,34 +1,47 @@
-import React, { useState } from 'react';
-import { X, Sliders, Bell, Folder, Key, Shield, Volume2 } from 'lucide-react';
-import { UserPreferences, ProviderId } from '../types';
+import React, { useEffect, useState } from 'react';
+import { X, Key, Sparkles } from 'lucide-react';
+import { UserPreferences, ProviderId, MascotState } from '../types';
+import { ProviderTelemetryService } from '../services/providerService';
 
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   preferences: UserPreferences;
   onSavePreferences: (newPrefs: UserPreferences) => void;
-  onSimulateState: (state: 'high' | 'medium' | 'low' | 'exhausted') => void;
+  apiKeys: Record<ProviderId, string>;
+  onSaveApiKeys: (keys: Record<ProviderId, string>) => void;
+  onPreviewMascotState: (state: MascotState) => void;
 }
+
+const KEY_PLACEHOLDERS: Record<ProviderId, string> = {
+  claude: 'sk-ant-...',
+  antigravity: 'AIzaSy...',
+  grok: 'xai-...',
+  codex: 'sk-proj-...',
+};
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
   isOpen,
   onClose,
   preferences,
   onSavePreferences,
-  onSimulateState,
+  apiKeys,
+  onSaveApiKeys,
+  onPreviewMascotState,
 }) => {
   const [prefs, setPrefs] = useState<UserPreferences>(preferences);
-  const [apiKeys, setApiKeys] = useState<Record<ProviderId, string>>({
-    claude: '',
-    antigravity: '',
-    grok: '',
-    codex: '',
-  });
+  const [localKeys, setLocalKeys] = useState<Record<ProviderId, string>>(apiKeys);
+
+  // Keep the form in sync whenever the modal is reopened with freshly saved keys.
+  useEffect(() => {
+    if (isOpen) setLocalKeys(apiKeys);
+  }, [isOpen, apiKeys]);
 
   if (!isOpen) return null;
 
   const handleSave = () => {
     onSavePreferences(prefs);
+    onSaveApiKeys(localKeys);
     onClose();
   };
 
@@ -61,78 +74,63 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </p>
 
             <div className="space-y-2">
-              <div>
-                <label className="text-[11px] text-amber-300 font-mono block mb-1">Claude Code (Anthropic API Key):</label>
-                <input
-                  type="password"
-                  placeholder="sk-ant-..."
-                  value={apiKeys.claude}
-                  onChange={(e) => setApiKeys({ ...apiKeys, claude: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 font-mono focus:border-emerald-500 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] text-cyan-300 font-mono block mb-1">Antigravity / Gemini Key:</label>
-                <input
-                  type="password"
-                  placeholder="AIzaSy..."
-                  value={apiKeys.antigravity}
-                  onChange={(e) => setApiKeys({ ...apiKeys, antigravity: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 font-mono focus:border-emerald-500 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] text-emerald-300 font-mono block mb-1">xAI Grok API Key:</label>
-                <input
-                  type="password"
-                  placeholder="xai-..."
-                  value={apiKeys.grok}
-                  onChange={(e) => setApiKeys({ ...apiKeys, grok: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 font-mono focus:border-emerald-500 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] text-purple-300 font-mono block mb-1">OpenAI Codex Key:</label>
-                <input
-                  type="password"
-                  placeholder="sk-proj-..."
-                  value={apiKeys.codex}
-                  onChange={(e) => setApiKeys({ ...apiKeys, codex: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 font-mono focus:border-emerald-500 focus:outline-none"
-                />
-              </div>
+              {(Object.keys(KEY_PLACEHOLDERS) as ProviderId[]).map((id) => {
+                const value = localKeys[id] || '';
+                const isValid = value.trim().length > 0 && ProviderTelemetryService.isValidApiKeyFormat(id, value);
+                const labelColor =
+                  id === 'claude' ? 'text-amber-300' : id === 'antigravity' ? 'text-cyan-300' : id === 'grok' ? 'text-emerald-300' : 'text-purple-300';
+                const labelText =
+                  id === 'claude' ? 'Claude Code (Anthropic API Key)' : id === 'antigravity' ? 'Antigravity / Gemini Key' : id === 'grok' ? 'xAI Grok API Key' : 'OpenAI Codex Key';
+                return (
+                  <div key={id}>
+                    <label className={`text-[11px] font-mono flex items-center gap-1.5 mb-1 ${labelColor}`}>
+                      {labelText}:
+                      {value.trim().length > 0 && (
+                        <span className={isValid ? 'text-emerald-400' : 'text-slate-500'}>
+                          {isValid ? '✓ valid format' : '· unrecognized format'}
+                        </span>
+                      )}
+                    </label>
+                    <input
+                      type="password"
+                      placeholder={KEY_PLACEHOLDERS[id]}
+                      value={value}
+                      onChange={(e) => setLocalKeys({ ...localKeys, [id]: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 font-mono focus:border-emerald-500 focus:outline-none"
+                    />
+                  </div>
+                );
+              })}
             </div>
           </div>
 
-          {/* Test Mascot Animations */}
+          {/* Preview Mascot States (Demo) — cosmetic only, never affects real telemetry */}
           <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 flex flex-col gap-2">
             <span className="font-semibold text-slate-200 flex items-center gap-1.5">
-              <Shield className="w-3.5 h-3.5 text-amber-400" /> Mascot State Testing
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Preview Mascot States (Demo)
             </span>
+            <p className="text-[10px] text-slate-500 -mt-1">Cosmetic preview only — does not change real quota data.</p>
             <div className="grid grid-cols-2 gap-2 mt-0.5">
               <button
-                onClick={() => onSimulateState('high')}
+                onClick={() => onPreviewMascotState('flying')}
                 className="px-2 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 font-semibold"
               >
                 🟢 Flying (&gt;70%)
               </button>
               <button
-                onClick={() => onSimulateState('medium')}
+                onClick={() => onPreviewMascotState('alert')}
                 className="px-2 py-1.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:bg-amber-500/30 font-semibold"
               >
                 🟡 Alert (30-70%)
               </button>
               <button
-                onClick={() => onSimulateState('low')}
+                onClick={() => onPreviewMascotState('tired')}
                 className="px-2 py-1.5 rounded-lg bg-orange-500/20 text-orange-300 border border-orange-500/30 hover:bg-orange-500/30 font-semibold"
               >
                 🟠 Tired (&lt;30%)
               </button>
               <button
-                onClick={() => onSimulateState('exhausted')}
+                onClick={() => onPreviewMascotState('sleeping')}
                 className="px-2 py-1.5 rounded-lg bg-purple-500/20 text-purple-300 border border-purple-500/30 hover:bg-purple-500/30 font-semibold"
               >
                 🔴 Sleeping (0%)

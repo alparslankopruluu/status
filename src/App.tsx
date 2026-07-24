@@ -23,8 +23,9 @@ const INITIAL_PROVIDERS: Record<ProviderId, ProviderUsage> = {
     status: 'healthy',
     resetTimerSeconds: 12400,
     requestsLimit: '1.2M / 1.5M tokens',
-    lastUpdated: 'Just now',
-    isSimulated: false, // Authenticated via ~/.claude/
+    lastUpdated: 'Not connected',
+    isAuthenticated: false,
+    isSimulated: true,
   },
   antigravity: {
     id: 'antigravity',
@@ -35,8 +36,9 @@ const INITIAL_PROVIDERS: Record<ProviderId, ProviderUsage> = {
     status: 'healthy',
     resetTimerSeconds: 28800,
     requestsLimit: 'Daily Pro Tier',
-    lastUpdated: 'Just now',
-    isSimulated: false, // Authenticated via ~/.gemini/
+    lastUpdated: 'Not connected',
+    isAuthenticated: false,
+    isSimulated: true,
   },
   grok: {
     id: 'grok',
@@ -47,8 +49,9 @@ const INITIAL_PROVIDERS: Record<ProviderId, ProviderUsage> = {
     status: 'healthy',
     resetTimerSeconds: 7200,
     requestsLimit: '5h Window Limit',
-    lastUpdated: 'Just now',
-    isSimulated: true, // Unauthenticated (will be filtered out unless authenticated)
+    lastUpdated: 'Not connected',
+    isAuthenticated: false,
+    isSimulated: true,
   },
   codex: {
     id: 'codex',
@@ -59,8 +62,9 @@ const INITIAL_PROVIDERS: Record<ProviderId, ProviderUsage> = {
     status: 'healthy',
     resetTimerSeconds: 15600,
     requestsLimit: 'Tier 4 API',
-    lastUpdated: 'Just now',
-    isSimulated: true, // Unauthenticated (will be filtered out unless authenticated)
+    lastUpdated: 'Not connected',
+    isAuthenticated: false,
+    isSimulated: true,
   },
 };
 
@@ -91,12 +95,20 @@ export default function App() {
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [displayMode, setDisplayMode] = useState<'full' | 'widget' | 'flying-pet'>('full');
   const [facingDirection, setFacingDirection] = useState<'left' | 'right'>('right');
+  const [mascotPreviewOverride, setMascotPreviewOverride] = useState<MascotState | null>(null);
+  const previewTimeoutRef = React.useRef<number | null>(null);
 
   useEffect(() => {
     const completed = localStorage.getItem('statusowl_onboarding_completed');
     if (!completed) {
       setIsOnboardingOpen(true);
     }
+    // Detect real local sessions / configured keys as soon as the app opens.
+    handleRefreshAll();
+    return () => {
+      if (previewTimeoutRef.current) window.clearTimeout(previewTimeoutRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const setMode = (mode: 'full' | 'widget' | 'flying-pet') => {
@@ -136,13 +148,10 @@ export default function App() {
     } catch (e) {}
   }, []);
 
-  // 🎯 STRICT FILTERING: Only show AUTHENTICATED & VALID providers in the list!
+  // Only show providers with a REAL verified auth signal (valid key format or a
+  // genuinely detected local session folder) — see providerService.ts.
   const providerList = Object.values(providers);
-  const authenticatedProviders = providerList.filter((p) => {
-    // True if user entered API key OR has verified local CLI session
-    const hasKey = Boolean(apiKeys[p.id] && apiKeys[p.id].trim().length > 0);
-    return !p.isSimulated || hasKey;
-  });
+  const authenticatedProviders = providerList.filter((p) => p.isAuthenticated);
 
   const totalPercent = authenticatedProviders.length
     ? authenticatedProviders.reduce((sum, p) => sum + p.remainingPercent, 0)
@@ -159,19 +168,25 @@ export default function App() {
     return 'flying';
   };
 
-  const mascotState = getMascotState(overallHealthScore, authenticatedProviders);
+  // A manual "Preview Mascot States (Demo)" click always wins over real telemetry,
+  // and reverts on its own — it must never leave fabricated numbers sitting in
+  // real provider data (that was the old bug).
+  const mascotState = mascotPreviewOverride ?? getMascotState(overallHealthScore, authenticatedProviders);
 
   const lowProviders = authenticatedProviders.filter((p) => p.remainingPercent < 40);
   const nextResetSeconds = lowProviders.length
     ? Math.min(...lowProviders.map((p) => p.resetTimerSeconds))
     : 6240;
 
-  const handleRefreshAll = async () => {
+  // Accepts an explicit key set so callers that just called setApiKeys() (an async
+  // state update) can refresh against the NEW keys instead of a stale closure value.
+  const handleRefreshAll = async (keysOverride?: Record<ProviderId, string>) => {
+    const activeKeys = keysOverride ?? apiKeys;
     const updated = { ...providers };
     for (const key of Object.keys(updated) as ProviderId[]) {
       updated[key] = await ProviderTelemetryService.fetchProviderMetrics(
         key,
-        { apiKeys, customPaths: preferences.customPaths },
+        { apiKeys: activeKeys, customPaths: preferences.customPaths },
         updated[key]
       );
     }
@@ -191,34 +206,13 @@ export default function App() {
     }));
   };
 
-  const handleSimulateState = (mode: 'high' | 'medium' | 'low' | 'exhausted') => {
-    setProviders((prev) => {
-      const next = { ...prev };
-      if (mode === 'high') {
-        next.claude.remainingPercent = 90;
-        next.antigravity.remainingPercent = 95;
-        next.grok.remainingPercent = 88;
-        next.codex.remainingPercent = 82;
-      } else if (mode === 'medium') {
-        next.claude.remainingPercent = 55;
-        next.antigravity.remainingPercent = 60;
-        next.grok.remainingPercent = 48;
-        next.codex.remainingPercent = 50;
-      } else if (mode === 'low') {
-        next.claude.remainingPercent = 22;
-        next.antigravity.remainingPercent = 28;
-        next.grok.remainingPercent = 18;
-        next.codex.remainingPercent = 25;
-      } else if (mode === 'exhausted') {
-        next.claude.remainingPercent = 5;
-        next.antigravity.remainingPercent = 80;
-        next.grok.remainingPercent = 0;
-        next.codex.remainingPercent = 12;
-      }
-      return next;
-    });
-
-    trigger5sFlightEvent();
+  // Pure UI preview of a mascot state — never touches real provider telemetry,
+  // and deliberately does NOT trigger the desktop flying-pet takeover (that's a
+  // separate, explicit action via the Rocket buttons). Auto-reverts after a few seconds.
+  const handlePreviewMascotState = (state: MascotState) => {
+    setMascotPreviewOverride(state);
+    if (previewTimeoutRef.current) window.clearTimeout(previewTimeoutRef.current);
+    previewTimeoutRef.current = window.setTimeout(() => setMascotPreviewOverride(null), 6000);
   };
 
   // 🦅 5-SECOND FLYING MASCOT NOTIFICATION
@@ -240,6 +234,7 @@ export default function App() {
             healthScore={overallHealthScore}
             nextResetSeconds={nextResetSeconds}
             hideBadge={true}
+            hideGlow={true}
           />
         </div>
       </div>
@@ -323,10 +318,13 @@ export default function App() {
             healthScore={overallHealthScore}
             nextResetSeconds={nextResetSeconds}
             onClick={() => {
-              if (mascotState === 'flying') handleSimulateState('medium');
-              else if (mascotState === 'alert') handleSimulateState('low');
-              else if (mascotState === 'tired') handleSimulateState('exhausted');
-              else handleSimulateState('high');
+              const cycle: Record<MascotState, MascotState> = {
+                flying: 'alert',
+                alert: 'tired',
+                tired: 'sleeping',
+                sleeping: 'flying',
+              };
+              handlePreviewMascotState(cycle[mascotState]);
             }}
           />
 
@@ -390,7 +388,12 @@ export default function App() {
         onClose={() => setIsSettingsOpen(false)}
         preferences={preferences}
         onSavePreferences={(newPrefs) => setPreferences(newPrefs)}
-        onSimulateState={handleSimulateState}
+        apiKeys={apiKeys}
+        onSaveApiKeys={(keys) => {
+          setApiKeys(keys);
+          handleRefreshAll(keys);
+        }}
+        onPreviewMascotState={handlePreviewMascotState}
       />
 
       {/* Onboarding Wizard Modal */}
@@ -399,7 +402,7 @@ export default function App() {
         onClose={() => setIsOnboardingOpen(false)}
         onSaveApiKeys={(keys) => {
           setApiKeys(keys);
-          handleRefreshAll();
+          handleRefreshAll(keys);
         }}
       />
     </div>

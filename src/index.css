@@ -4,7 +4,10 @@
 
 @layer base {
   body {
-    @apply bg-slate-950 text-slate-100 font-['Outfit',sans-serif];
+    /* Transparent so Tauri's transparent window setting actually shows through
+       (e.g. the free-floating desktop mascot). Modes that need a solid backdrop
+       (full popover / widget) supply their own opaque background at the div level. */
+    @apply bg-transparent text-slate-100 font-['Outfit',sans-serif];
   }
 }
 

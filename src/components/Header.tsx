@@ -28,7 +28,7 @@ export const Header: React.FC<HeaderProps> = ({
     >
       {/* Title & Drag handle */}
       <div data-tauri-drag-region className="flex items-center gap-2">
-        <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-500 to-cyan-600 flex items-center justify-center shadow-md text-white font-bold text-sm">
+        <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-owl-emerald to-owl-cyan flex items-center justify-center shadow-md text-white font-bold text-sm">
           🦉
         </div>
         <div data-tauri-drag-region>

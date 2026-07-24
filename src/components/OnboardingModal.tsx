@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
-import { X, Sparkles, Shield, Rocket, Key, ArrowRight, CheckCircle2, Bot, Terminal, Cpu, ExternalLink } from 'lucide-react';
-import { ProviderId } from '../types';
+import React, { useEffect, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { X, Sparkles, Key, ArrowRight, ArrowLeft, CheckCircle2, Bot, Terminal, Cpu, ExternalLink } from 'lucide-react';
+import { ProviderId, MascotState } from '../types';
+import { ProviderTelemetryService } from '../services/providerService';
+import { OwlMascot } from './OwlMascot';
 
 interface OnboardingModalProps {
   isOpen: boolean;
@@ -8,12 +11,79 @@ interface OnboardingModalProps {
   onSaveApiKeys: (keys: Record<ProviderId, string>) => void;
 }
 
+// Full literal Tailwind class strings per provider — Tailwind's compiler needs
+// complete class names at build time, so these are never built via string interpolation.
+const PROVIDER_META: Record<
+  ProviderId,
+  { label: string; placeholder: string; url: string; text: string; link: string; icon: React.ReactNode }
+> = {
+  claude: {
+    label: 'Claude Code',
+    placeholder: 'sk-ant-...',
+    url: 'https://console.anthropic.com/settings/keys',
+    text: 'text-amber-300',
+    link: 'text-amber-300',
+    icon: <Bot className="w-3.5 h-3.5" />,
+  },
+  antigravity: {
+    label: 'Antigravity (Gemini)',
+    placeholder: 'AIzaSy...',
+    url: 'https://aistudio.google.com/app/apikey',
+    text: 'text-cyan-300',
+    link: 'text-cyan-300',
+    icon: <Sparkles className="w-3.5 h-3.5" />,
+  },
+  grok: {
+    label: 'xAI Grok',
+    placeholder: 'xai-...',
+    url: 'https://console.x.ai',
+    text: 'text-emerald-300',
+    link: 'text-emerald-300',
+    icon: <Cpu className="w-3.5 h-3.5" />,
+  },
+  codex: {
+    label: 'OpenAI Codex',
+    placeholder: 'sk-proj-...',
+    url: 'https://platform.openai.com/api-keys',
+    text: 'text-purple-300',
+    link: 'text-purple-300',
+    icon: <Terminal className="w-3.5 h-3.5" />,
+  },
+};
+
+const PREVIEW_CYCLE: MascotState[] = ['flying', 'alert', 'tired', 'sleeping'];
+
+const PREVIEW_STYLES: Record<MascotState, { title: string; chipActive: string; chipInactive: string }> = {
+  flying: {
+    title: 'text-emerald-300',
+    chipActive: 'bg-emerald-500/15 border-emerald-500/40',
+    chipInactive: 'bg-slate-900/50 border-slate-800 hover:border-slate-700',
+  },
+  alert: {
+    title: 'text-amber-300',
+    chipActive: 'bg-amber-500/15 border-amber-500/40',
+    chipInactive: 'bg-slate-900/50 border-slate-800 hover:border-slate-700',
+  },
+  tired: {
+    title: 'text-orange-300',
+    chipActive: 'bg-orange-500/15 border-orange-500/40',
+    chipInactive: 'bg-slate-900/50 border-slate-800 hover:border-slate-700',
+  },
+  sleeping: {
+    title: 'text-purple-300',
+    chipActive: 'bg-purple-500/15 border-purple-500/40',
+    chipInactive: 'bg-slate-900/50 border-slate-800 hover:border-slate-700',
+  },
+};
+
 export const OnboardingModal: React.FC<OnboardingModalProps> = ({
   isOpen,
   onClose,
   onSaveApiKeys,
 }) => {
   const [step, setStep] = useState<number>(1);
+  const [direction, setDirection] = useState<1 | -1>(1);
+  const [previewState, setPreviewState] = useState<MascotState>('flying');
   const [apiKeys, setApiKeys] = useState<Record<ProviderId, string>>({
     claude: '',
     antigravity: '',
@@ -21,21 +91,46 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
     codex: '',
   });
 
+  // Cycle the live mascot preview only while step 2 is on screen.
+  useEffect(() => {
+    if (step !== 2 || !isOpen) return;
+    let i = 0;
+    const interval = window.setInterval(() => {
+      i = (i + 1) % PREVIEW_CYCLE.length;
+      setPreviewState(PREVIEW_CYCLE[i]);
+    }, 1800);
+    return () => window.clearInterval(interval);
+  }, [step, isOpen]);
+
   if (!isOpen) return null;
 
-  const handleFinish = () => {
-    onSaveApiKeys(apiKeys);
+  const goToStep = (next: number) => {
+    setDirection(next > step ? 1 : -1);
+    setStep(next);
+  };
+
+  const finish = (keys: Record<ProviderId, string>) => {
+    onSaveApiKeys(keys);
     localStorage.setItem('statusowl_onboarding_completed', 'true');
     onClose();
   };
 
+  const handleSkip = () => finish({ claude: '', antigravity: '', grok: '', codex: '' });
+  const handleFinish = () => finish(apiKeys);
+
+  const slideVariants = {
+    enter: (dir: number) => ({ x: dir > 0 ? 40 : -40, opacity: 0 }),
+    center: { x: 0, opacity: 1 },
+    exit: (dir: number) => ({ x: dir > 0 ? -40 : 40, opacity: 0 }),
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-lg animate-fade-in select-none">
-      <div className="w-full max-w-lg glass-panel rounded-3xl border border-slate-800 shadow-2xl overflow-hidden flex flex-col">
+      <div className="w-full max-w-lg glass-panel rounded-3xl border border-owl-border shadow-2xl overflow-hidden flex flex-col">
         {/* Header / Stepper Progress Bar */}
         <div className="px-6 py-4 border-b border-slate-800/80 bg-slate-900/80 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 flex items-center justify-center font-bold text-sm">
+            <div className="w-7 h-7 rounded-lg bg-owl-emerald/20 border border-owl-emerald/40 text-emerald-300 flex items-center justify-center font-bold text-sm">
               🦉
             </div>
             <div>
@@ -44,201 +139,174 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5">
-            <div className={`w-6 h-1.5 rounded-full transition-all ${step >= 1 ? 'bg-emerald-400' : 'bg-slate-800'}`} />
-            <div className={`w-6 h-1.5 rounded-full transition-all ${step >= 2 ? 'bg-emerald-400' : 'bg-slate-800'}`} />
-            <div className={`w-6 h-1.5 rounded-full transition-all ${step >= 3 ? 'bg-emerald-400' : 'bg-slate-800'}`} />
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
+              {[1, 2, 3].map((s) => (
+                <div key={s} className={`w-6 h-1.5 rounded-full transition-all ${step >= s ? 'bg-owl-emerald' : 'bg-slate-800'}`} />
+              ))}
+            </div>
+            <button
+              onClick={handleSkip}
+              className="p-1 rounded-lg text-slate-500 hover:text-slate-200 hover:bg-slate-800 transition-colors"
+              title="Skip onboarding"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
         </div>
 
-        {/* Step 1: What is StatusOwl? */}
-        {step === 1 && (
-          <div className="p-6 flex flex-col gap-4 text-slate-200">
-            <div className="text-center flex flex-col items-center gap-2">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-cyan-600 flex items-center justify-center shadow-lg text-3xl mb-1">
-                🦉
-              </div>
-              <h3 className="text-lg font-bold text-slate-100">Zero-Friction AI Quota Monitor</h3>
-              <p className="text-xs text-slate-400 max-w-sm leading-relaxed">
-                StatusOwl lives natively in your <span className="text-emerald-400 font-semibold">macOS Menu Bar</span> or <span className="text-cyan-400 font-semibold">Windows System Tray</span>. Never run out of AI coding quota mid-session!
-              </p>
-            </div>
+        <div className="overflow-hidden">
+          <AnimatePresence mode="wait" custom={direction}>
+            <motion.div
+              key={step}
+              custom={direction}
+              variants={slideVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{ duration: 0.22, ease: 'easeOut' }}
+            >
+              {/* Step 1: What is StatusOwl? */}
+              {step === 1 && (
+                <div className="p-6 flex flex-col gap-4 text-slate-200">
+                  <div className="text-center flex flex-col items-center gap-2">
+                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-owl-emerald to-owl-cyan flex items-center justify-center shadow-lg text-3xl mb-1">
+                      🦉
+                    </div>
+                    <h3 className="text-lg font-bold text-slate-100">Zero-Friction AI Quota Monitor</h3>
+                    <p className="text-xs text-slate-400 max-w-sm leading-relaxed">
+                      StatusOwl lives natively in your <span className="text-emerald-400 font-semibold">macOS Menu Bar</span> or{' '}
+                      <span className="text-cyan-400 font-semibold">Windows System Tray</span>. Never run out of AI coding quota mid-session!
+                    </p>
+                  </div>
 
-            <div className="grid grid-cols-2 gap-2.5 mt-2">
-              <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 flex flex-col gap-1">
-                <span className="text-xs font-semibold text-emerald-300 flex items-center gap-1">
-                  <Bot className="w-3.5 h-3.5" /> Claude Code
-                </span>
-                <span className="text-[11px] text-slate-400">Auto-detects 5h rolling limit &amp; org tokens from <code className="text-slate-300">~/.claude/</code>.</span>
-              </div>
-
-              <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 flex flex-col gap-1">
-                <span className="text-xs font-semibold text-cyan-300 flex items-center gap-1">
-                  <Sparkles className="w-3.5 h-3.5" /> Antigravity (Gemini)
-                </span>
-                <span className="text-[11px] text-slate-400">Monitors Gemini 3.6 Flash/Pro IDE telemetry from <code className="text-slate-300">~/.gemini/</code>.</span>
-              </div>
-
-              <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 flex flex-col gap-1">
-                <span className="text-xs font-semibold text-amber-300 flex items-center gap-1">
-                  <Cpu className="w-3.5 h-3.5" /> xAI Grok
-                </span>
-                <span className="text-[11px] text-slate-400">Tracks 5h CLI window usage and replenish reset timers.</span>
-              </div>
-
-              <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 flex flex-col gap-1">
-                <span className="text-xs font-semibold text-purple-300 flex items-center gap-1">
-                  <Terminal className="w-3.5 h-3.5" /> OpenAI Codex
-                </span>
-                <span className="text-[11px] text-slate-400">Reads local Codex config and token rate limit buckets.</span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Step 2: Mascot & 5s Status Flight Event */}
-        {step === 2 && (
-          <div className="p-6 flex flex-col gap-4 text-slate-200">
-            <div className="text-center flex flex-col items-center gap-1">
-              <h3 className="text-base font-bold text-slate-100">Meet Hooty the Status Owl 🦅</h3>
-              <p className="text-xs text-slate-400">
-                Hooty reacts dynamically to your quota levels with 4 expressive states:
-              </p>
-            </div>
-
-            <div className="space-y-2 text-xs">
-              <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center gap-3">
-                <span className="text-xl">🟢</span>
-                <div>
-                  <span className="font-bold text-emerald-300 block">Flying / Soaring (&gt;70% Quota)</span>
-                  <span className="text-[11px] text-slate-400">Cheerful flapping wings, green aura. Full energy!</span>
+                  <div className="grid grid-cols-2 gap-2.5 mt-2">
+                    {(Object.keys(PROVIDER_META) as ProviderId[]).map((id) => (
+                      <div key={id} className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 flex flex-col gap-1">
+                        <span className={`text-xs font-semibold flex items-center gap-1 ${PROVIDER_META[id].text}`}>
+                          {PROVIDER_META[id].icon} {PROVIDER_META[id].label}
+                        </span>
+                        <span className="text-[11px] text-slate-400">
+                          {id === 'claude' && <>Detects a local session in <code className="text-slate-300">~/.claude/</code>.</>}
+                          {id === 'antigravity' && <>Detects IDE telemetry in <code className="text-slate-300">~/.gemini/</code>.</>}
+                          {id === 'grok' && <>Tracks the 5h CLI rolling window.</>}
+                          {id === 'codex' && <>Reads local Codex config &amp; token buckets.</>}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
-              <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-3">
-                <span className="text-xl">🟡</span>
-                <div>
-                  <span className="font-bold text-amber-300 block">Perched &amp; Alert (30% - 70%)</span>
-                  <span className="text-[11px] text-slate-400">Attentive blinking eyes with steam-rising coffee mug.</span>
+              {/* Step 2: Mascot preview */}
+              {step === 2 && (
+                <div className="p-6 flex flex-col gap-3 text-slate-200">
+                  <div className="text-center flex flex-col items-center gap-1">
+                    <h3 className="text-base font-bold text-slate-100">Meet Hooty the Status Owl</h3>
+                    <p className="text-xs text-slate-400">Hooty reacts live to your quota levels — watch the 4 states below:</p>
+                  </div>
+
+                  <div className="flex items-center justify-center py-1 scale-90">
+                    <OwlMascot state={previewState} healthScore={50} />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-[11px]">
+                    {(
+                      [
+                        ['flying', 'Flying (>70%)', 'Cheerful, glowing wings'],
+                        ['alert', 'Alert (30-70%)', 'Attentive, coffee in hand'],
+                        ['tired', 'Tired (<30%)', 'Drooping, shivering'],
+                        ['sleeping', 'Sleeping (<10%)', 'Snoring, reset countdown'],
+                      ] as [MascotState, string, string][]
+                    ).map(([state, title, desc]) => (
+                      <button
+                        key={state}
+                        onClick={() => setPreviewState(state)}
+                        className={`text-left p-2 rounded-lg border transition-colors ${
+                          previewState === state ? PREVIEW_STYLES[state].chipActive : PREVIEW_STYLES[state].chipInactive
+                        }`}
+                      >
+                        <span className={`font-bold block ${PREVIEW_STYLES[state].title}`}>{title}</span>
+                        <span className="text-slate-400">{desc}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
-              <div className="p-2.5 rounded-xl bg-orange-500/10 border border-orange-500/30 flex items-center gap-3">
-                <span className="text-xl">🟠</span>
-                <div>
-                  <span className="font-bold text-orange-300 block">Tired / Low Quota (&lt;30%)</span>
-                  <span className="text-[11px] text-slate-400">Drooping wings, sweat drop, shivering warning posture.</span>
+              {/* Step 3: Connect all 4 providers */}
+              {step === 3 && (
+                <div className="p-6 flex flex-col gap-3 text-slate-200">
+                  <div>
+                    <h3 className="text-base font-bold text-slate-100 flex items-center gap-1.5">
+                      <Key className="w-4 h-4 text-emerald-400" /> Connect API Keys or Auto-Detect
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-1">
+                      StatusOwl auto-detects local session folders, or you can paste a key below. A tool only shows up in your
+                      dashboard once one of these is actually verified — nothing is faked.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2 text-xs max-h-64 overflow-y-auto pr-1">
+                    {(Object.keys(PROVIDER_META) as ProviderId[]).map((id) => {
+                      const meta = PROVIDER_META[id];
+                      const value = apiKeys[id];
+                      const isValid = value.trim().length > 0 && ProviderTelemetryService.isValidApiKeyFormat(id, value);
+                      return (
+                        <div key={id} className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <label className={`font-semibold font-mono text-[11px] flex items-center gap-1.5 ${meta.text}`}>
+                              {meta.icon} {meta.label}
+                            </label>
+                            <a
+                              href={meta.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className={`text-[10px] flex items-center gap-1 hover:underline ${meta.link}`}
+                            >
+                              Get Key <ExternalLink className="w-2.5 h-2.5" />
+                            </a>
+                          </div>
+                          <input
+                            type="password"
+                            placeholder={`${meta.placeholder} (or leave blank to auto-detect)`}
+                            value={value}
+                            onChange={(e) => setApiKeys({ ...apiKeys, [id]: e.target.value })}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 font-mono focus:border-emerald-500 focus:outline-none"
+                          />
+                          {value.trim().length > 0 && (
+                            <span className={`text-[10px] mt-1 block ${isValid ? 'text-emerald-400' : 'text-slate-500'}`}>
+                              {isValid ? '✓ valid key format' : '· unrecognized format for this provider'}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-
-              <div className="p-2.5 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center gap-3">
-                <span className="text-xl">🔴</span>
-                <div>
-                  <span className="font-bold text-purple-300 block">5-Second Desktop Flight Event</span>
-                  <span className="text-[11px] text-slate-400">When status changes, Hooty flies across your desktop for 5 seconds and vanishes into the menu bar corner!</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Step 3: Auth & Direct API Key Generation Links */}
-        {step === 3 && (
-          <div className="p-6 flex flex-col gap-4 text-slate-200">
-            <div>
-              <h3 className="text-base font-bold text-slate-100 flex items-center gap-1.5">
-                <Key className="w-4 h-4 text-emerald-400" /> Connect API Keys or Auto-Detect
-              </h3>
-              <p className="text-xs text-slate-400 mt-1">
-                StatusOwl automatically detects local session logs (<code className="text-slate-300">~/.claude/</code>, <code className="text-slate-300">~/.gemini/</code>). You can also generate &amp; paste API keys below:
-              </p>
-            </div>
-
-            {/* Direct API Key Generation Buttons */}
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <a
-                href="https://console.anthropic.com/settings/keys"
-                target="_blank"
-                rel="noreferrer"
-                className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 text-amber-300 flex items-center justify-between transition-colors font-semibold"
-              >
-                <span>Get Claude Key 🔑</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
-
-              <a
-                href="https://aistudio.google.com/app/apikey"
-                target="_blank"
-                rel="noreferrer"
-                className="p-2.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30 hover:bg-cyan-500/20 text-cyan-300 flex items-center justify-between transition-colors font-semibold"
-              >
-                <span>Get Gemini Key 🔑</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
-
-              <a
-                href="https://console.x.ai"
-                target="_blank"
-                rel="noreferrer"
-                className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 hover:bg-emerald-500/20 text-emerald-300 flex items-center justify-between transition-colors font-semibold"
-              >
-                <span>Get Grok Key 🔑</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
-
-              <a
-                href="https://platform.openai.com/api-keys"
-                target="_blank"
-                rel="noreferrer"
-                className="p-2.5 rounded-xl bg-purple-500/10 border border-purple-500/30 hover:bg-purple-500/20 text-purple-300 flex items-center justify-between transition-colors font-semibold"
-              >
-                <span>Get Codex Key 🔑</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
-            </div>
-
-            <div className="space-y-2 text-xs">
-              <div>
-                <label className="text-amber-300 font-semibold font-mono text-[11px] block mb-1">Claude API Key (Optional):</label>
-                <input
-                  type="password"
-                  placeholder="sk-ant-... (or leave blank to use ~/.claude/ auto-detect)"
-                  value={apiKeys.claude}
-                  onChange={(e) => setApiKeys({ ...apiKeys, claude: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 font-mono focus:border-emerald-500 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="text-cyan-300 font-semibold font-mono text-[11px] block mb-1">Gemini Key (Optional):</label>
-                <input
-                  type="password"
-                  placeholder="AIzaSy... (or leave blank to use ~/.gemini/ auto-detect)"
-                  value={apiKeys.antigravity}
-                  onChange={(e) => setApiKeys({ ...apiKeys, antigravity: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-100 font-mono focus:border-emerald-500 focus:outline-none"
-                />
-              </div>
-            </div>
-          </div>
-        )}
+              )}
+            </motion.div>
+          </AnimatePresence>
+        </div>
 
         {/* Modal Footer */}
         <div className="px-6 py-4 border-t border-slate-800/80 bg-slate-900/80 flex items-center justify-between">
           {step > 1 ? (
             <button
-              onClick={() => setStep(step - 1)}
-              className="px-4 py-1.5 rounded-xl border border-slate-700 text-slate-300 hover:bg-slate-800 transition-colors text-xs"
+              onClick={() => goToStep(step - 1)}
+              className="px-4 py-1.5 rounded-xl border border-slate-700 text-slate-300 hover:bg-slate-800 transition-colors text-xs flex items-center gap-1.5"
             >
-              Back
+              <ArrowLeft className="w-3.5 h-3.5" /> Back
             </button>
           ) : (
-            <div />
+            <button onClick={handleSkip} className="px-4 py-1.5 text-slate-500 hover:text-slate-300 transition-colors text-xs">
+              Skip for now
+            </button>
           )}
 
           {step < 3 ? (
             <button
-              onClick={() => setStep(step + 1)}
+              onClick={() => goToStep(step + 1)}
               className="px-5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-semibold text-white transition-colors text-xs flex items-center gap-1.5"
             >
               Next <ArrowRight className="w-3.5 h-3.5" />

@@ -6,6 +6,9 @@ interface OwlMascotProps {
   healthScore: number;
   nextResetSeconds?: number;
   hideBadge?: boolean;
+  /** Skip the blurred color aura behind the owl — for contexts (like the free-floating
+   * desktop pet) where the owl must read as just a bird, with nothing behind it. */
+  hideGlow?: boolean;
   onClick?: () => void;
 }
 
@@ -14,6 +17,7 @@ export const OwlMascot: React.FC<OwlMascotProps> = ({
   healthScore,
   nextResetSeconds = 6240,
   hideBadge = false,
+  hideGlow = false,
   onClick,
 }) => {
   const formatTimer = (seconds: number) => {
@@ -29,18 +33,20 @@ export const OwlMascot: React.FC<OwlMascotProps> = ({
       onClick={onClick}
       className="relative flex flex-col items-center justify-center p-0 bg-transparent cursor-pointer group select-none transition-all duration-300"
     >
-      {/* Glow Aura Background */}
-      <div
-        className={`absolute inset-0 rounded-full blur-2xl opacity-25 transition-all duration-500 pointer-events-none ${
-          state === 'flying'
-            ? 'bg-emerald-400 scale-110'
-            : state === 'alert'
-            ? 'bg-amber-400 scale-100'
-            : state === 'tired'
-            ? 'bg-orange-500 scale-95'
-            : 'bg-purple-600 scale-105 animate-pulse'
-        }`}
-      />
+      {/* Glow Aura Background — omitted entirely when hideGlow is set */}
+      {!hideGlow && (
+        <div
+          className={`absolute inset-0 rounded-full blur-2xl opacity-25 transition-all duration-500 pointer-events-none ${
+            state === 'flying'
+              ? 'bg-emerald-400 scale-110'
+              : state === 'alert'
+              ? 'bg-amber-400 scale-100'
+              : state === 'tired'
+              ? 'bg-orange-500 scale-95'
+              : 'bg-purple-600 scale-105 animate-pulse'
+          }`}
+        />
+      )}
 
       {/* SVG Canvas Container */}
       <div
