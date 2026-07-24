@@ -1,16 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Header } from './components/Header';
 import { OwlMascot } from './components/OwlMascot';
 import { ProviderCard } from './components/ProviderCard';
 import { SettingsModal } from './components/SettingsModal';
 import {
-  OverallSystemStatus,
   ProviderUsage,
   ProviderId,
   MascotState,
   UserPreferences,
 } from './types';
-import { Sparkles, Activity, CheckCircle2, AlertOctagon, Terminal, RefreshCw } from 'lucide-react';
+import { Activity, Sparkles, Maximize2, Move } from 'lucide-react';
 
 const INITIAL_PROVIDERS: Record<ProviderId, ProviderUsage> = {
   claude: {
@@ -20,7 +19,7 @@ const INITIAL_PROVIDERS: Record<ProviderId, ProviderUsage> = {
     iconName: 'bot',
     remainingPercent: 85,
     status: 'healthy',
-    resetTimerSeconds: 12400, // 3h 26m
+    resetTimerSeconds: 12400,
     requestsLimit: '1.2M / 1.5M tokens',
     lastUpdated: 'Just now',
   },
@@ -31,7 +30,7 @@ const INITIAL_PROVIDERS: Record<ProviderId, ProviderUsage> = {
     iconName: 'sparkles',
     remainingPercent: 92,
     status: 'healthy',
-    resetTimerSeconds: 28800, // 8h 00m
+    resetTimerSeconds: 28800,
     requestsLimit: 'Daily Pro Tier',
     lastUpdated: 'Just now',
   },
@@ -42,7 +41,7 @@ const INITIAL_PROVIDERS: Record<ProviderId, ProviderUsage> = {
     iconName: 'cpu',
     remainingPercent: 78,
     status: 'healthy',
-    resetTimerSeconds: 7200, // 2h 00m
+    resetTimerSeconds: 7200,
     requestsLimit: '5h Window Limit',
     lastUpdated: 'Just now',
   },
@@ -53,7 +52,7 @@ const INITIAL_PROVIDERS: Record<ProviderId, ProviderUsage> = {
     iconName: 'terminal',
     remainingPercent: 64,
     status: 'healthy',
-    resetTimerSeconds: 15600, // 4h 20m
+    resetTimerSeconds: 15600,
     requestsLimit: 'Tier 4 API',
     lastUpdated: 'Just now',
   },
@@ -77,14 +76,14 @@ export default function App() {
   const [providers, setProviders] = useState<Record<ProviderId, ProviderUsage>>(INITIAL_PROVIDERS);
   const [preferences, setPreferences] = useState<UserPreferences>(DEFAULT_PREFERENCES);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isWidgetMode, setIsWidgetMode] = useState(false);
 
-  // Compute aggregate health score
+  // Aggregate score calculation
   const providerList = Object.values(providers);
   const totalPercent = providerList.reduce((sum, p) => sum + p.remainingPercent, 0);
   const overallHealthScore = Math.round(totalPercent / providerList.length);
 
-  // Determine Mascot state dynamically
+  // Dynamic mascot state calculation
   const getMascotState = (score: number, items: ProviderUsage[]): MascotState => {
     const hasExhausted = items.some((p) => p.remainingPercent < 10);
     if (hasExhausted || score < 15) return 'sleeping';
@@ -95,31 +94,24 @@ export default function App() {
 
   const mascotState = getMascotState(overallHealthScore, providerList);
 
-  // Find minimum reset seconds among providers that are low/exhausted
   const lowProviders = providerList.filter((p) => p.remainingPercent < 40);
   const nextResetSeconds = lowProviders.length
     ? Math.min(...lowProviders.map((p) => p.resetTimerSeconds))
     : 6240;
 
-  // Refresh Telemetry Handler
   const handleRefreshAll = () => {
-    setIsRefreshing(true);
-    setTimeout(() => {
-      setProviders((prev) => {
-        const next = { ...prev };
-        (Object.keys(next) as ProviderId[]).forEach((key) => {
-          next[key] = {
-            ...next[key],
-            lastUpdated: 'Just now',
-          };
-        });
-        return next;
+    setProviders((prev) => {
+      const next = { ...prev };
+      (Object.keys(next) as ProviderId[]).forEach((key) => {
+        next[key] = {
+          ...next[key],
+          lastUpdated: 'Just now',
+        };
       });
-      setIsRefreshing(false);
-    }, 600);
+      return next;
+    });
   };
 
-  // Single provider refresh
   const handleRefreshSingle = (id: string) => {
     const key = id as ProviderId;
     setProviders((prev) => ({
@@ -131,7 +123,6 @@ export default function App() {
     }));
   };
 
-  // Simulate mascot states for testing
   const handleSimulateState = (mode: 'high' | 'medium' | 'low' | 'exhausted') => {
     setProviders((prev) => {
       const next = { ...prev };
@@ -160,26 +151,76 @@ export default function App() {
     });
   };
 
+  // Compact Floating Desktop Mascot Widget View
+  if (isWidgetMode) {
+    return (
+      <div
+        data-tauri-drag-region
+        className="w-full h-screen bg-slate-950/80 backdrop-blur-xl border border-slate-800 rounded-3xl p-3 flex flex-col items-center justify-between cursor-move select-none shadow-2xl overflow-hidden group"
+      >
+        {/* Drag Indicator & Expand Button */}
+        <div data-tauri-drag-region className="w-full flex items-center justify-between px-2 pt-1 text-[10px] text-slate-400">
+          <span data-tauri-drag-region className="flex items-center gap-1 font-bold text-slate-300">
+            <Move className="w-3 h-3 text-cyan-400" /> Desktop Mascot
+          </span>
+          <button
+            onClick={() => setIsWidgetMode(false)}
+            className="p-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors"
+            title="Expand Full Panel"
+          >
+            <Maximize2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {/* Mascot Center */}
+        <OwlMascot
+          state={mascotState}
+          healthScore={overallHealthScore}
+          nextResetSeconds={nextResetSeconds}
+          onClick={() => setIsWidgetMode(false)}
+        />
+
+        {/* Quick Health Summary Pill */}
+        <div data-tauri-drag-region className="pb-1 text-[11px] font-mono text-center">
+          <span className="text-slate-400">Health: </span>
+          <span
+            className={`font-bold ${
+              overallHealthScore > 70
+                ? 'text-emerald-400'
+                : overallHealthScore >= 30
+                ? 'text-amber-400'
+                : 'text-red-400'
+            }`}
+          >
+            {overallHealthScore}%
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  // Full Desktop Popover View
   return (
-    <div className="min-h-screen w-full bg-slate-950 text-slate-100 flex flex-col antialiased">
-      {/* Header Bar */}
+    <div className="h-screen w-full bg-slate-950/95 text-slate-100 flex flex-col antialiased border border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
+      {/* Header Bar with Native Drag Support */}
       <Header
         healthScore={overallHealthScore}
         mascotState={mascotState}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onRefreshAll={handleRefreshAll}
+        isWidgetMode={isWidgetMode}
+        onToggleWidgetMode={() => setIsWidgetMode(true)}
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 p-4 flex flex-col gap-4 max-w-lg mx-auto w-full overflow-y-auto">
+      <main className="flex-1 p-3.5 flex flex-col gap-3.5 overflow-y-auto">
         {/* Mascot Hero Card */}
-        <div className="glass-panel rounded-2xl p-4 flex flex-col items-center justify-center relative overflow-hidden border border-slate-800 shadow-xl">
+        <div className="glass-panel rounded-2xl p-3 flex flex-col items-center justify-center relative overflow-hidden border border-slate-800/80 shadow-xl">
           <OwlMascot
             state={mascotState}
             healthScore={overallHealthScore}
             nextResetSeconds={nextResetSeconds}
             onClick={() => {
-              // Cycle state on click for fun user interaction
               if (mascotState === 'flying') handleSimulateState('medium');
               else if (mascotState === 'alert') handleSimulateState('low');
               else if (mascotState === 'tired') handleSimulateState('exhausted');
@@ -188,7 +229,7 @@ export default function App() {
           />
 
           {/* Quick Click Hint */}
-          <span className="text-[10px] text-slate-500 font-mono mt-1 opacity-70 hover:opacity-100 transition-opacity">
+          <span className="text-[10px] text-slate-500 font-mono mt-0.5 opacity-70 hover:opacity-100 transition-opacity">
             💡 Click owl to preview mascot state transitions
           </span>
         </div>
@@ -199,13 +240,13 @@ export default function App() {
             <Activity className="w-3.5 h-3.5 text-emerald-400" />
             Monitored AI Coding Tools
           </h3>
-          <span className="text-[11px] font-mono text-slate-500">
+          <span className="text-[10px] font-mono text-slate-500">
             Auto-refresh: {preferences.refreshIntervalSeconds}s
           </span>
         </div>
 
         {/* Provider Cards List */}
-        <div className="grid grid-cols-1 gap-3">
+        <div className="grid grid-cols-1 gap-2.5">
           {providerList.map((provider) => (
             <ProviderCard
               key={provider.id}
@@ -217,8 +258,8 @@ export default function App() {
       </main>
 
       {/* Footer Bar */}
-      <footer className="px-4 py-2 border-t border-slate-900 bg-slate-950/90 text-center text-[11px] font-mono text-slate-500 flex items-center justify-between">
-        <span>macOS &amp; Windows Ready</span>
+      <footer className="px-3.5 py-1.5 border-t border-slate-900 bg-slate-950/95 text-center text-[10px] font-mono text-slate-500 flex items-center justify-between">
+        <span>macOS &amp; Windows Desktop App</span>
         <span className="text-emerald-400/80 flex items-center gap-1">
           <Sparkles className="w-3 h-3" /> StatusOwl Active
         </span>

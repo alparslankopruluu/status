@@ -12,14 +12,16 @@
   "app": {
     "windows": [
       {
-        "title": "StatusOwl Monitor",
+        "title": "StatusOwl",
         "width": 380,
         "height": 580,
         "resizable": false,
         "fullscreen": false,
         "transparent": true,
-        "decorations": true,
-        "alwaysOnTop": true
+        "decorations": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "center": false
       }
     ],
     "security": {
