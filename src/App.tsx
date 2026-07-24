@@ -77,8 +77,9 @@ export default function App() {
   const [preferences, setPreferences] = useState<UserPreferences>(DEFAULT_PREFERENCES);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [displayMode, setDisplayMode] = useState<'full' | 'widget' | 'flying-pet'>('full');
+  const [facingDirection, setFacingDirection] = useState<'left' | 'right'>('right');
 
-  // Electron window resizing integration
+  // Electron IPC window sizing & direction handling
   const setMode = (mode: 'full' | 'widget' | 'flying-pet') => {
     setDisplayMode(mode);
     try {
@@ -86,9 +87,7 @@ export default function App() {
         const { ipcRenderer } = window.require('electron');
         ipcRenderer.send('set-window-size', mode);
       }
-    } catch (e) {
-      // Non-electron web fallback
-    }
+    } catch (e) {}
   };
 
   useEffect(() => {
@@ -97,6 +96,9 @@ export default function App() {
         const { ipcRenderer } = window.require('electron');
         ipcRenderer.on('set-mode', (_: any, mode: 'full' | 'widget' | 'flying-pet') => {
           setDisplayMode(mode);
+        });
+        ipcRenderer.on('flight-facing', (_: any, direction: 'left' | 'right') => {
+          setFacingDirection(direction);
         });
       }
     } catch (e) {}
@@ -174,44 +176,25 @@ export default function App() {
     });
   };
 
-  // 🚀 Flying Desktop Pet Mode
+  // 🦅 REAL FLYING DESKTOP PET MODE (Zero background, zero text, ONLY the flying owl)
   if (displayMode === 'flying-pet') {
     return (
       <div
         data-tauri-drag-region
-        className="w-full h-screen bg-transparent flex flex-col items-center justify-center cursor-move select-none overflow-hidden group relative"
+        className="w-full h-screen bg-transparent flex items-center justify-center cursor-pointer select-none overflow-hidden"
+        onClick={() => setMode('full')}
+        title="Click Hooty to expand AI Quota Status Panel!"
       >
-        {/* Floating Controls Overlay on Hover */}
         <div
-          data-tauri-drag-region
-          className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900/90 border border-slate-700/80 rounded-full p-1 flex items-center gap-1 shadow-lg z-30"
-        >
-          <button
-            onClick={() => setMode('full')}
-            className="p-1 rounded-full bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 transition-colors"
-            title="Expand Full Status Panel"
-          >
-            <Maximize2 className="w-3.5 h-3.5" />
-          </button>
-        </div>
-
-        {/* Flying Owl Mascot */}
-        <div
-          onClick={() => setMode('full')}
-          className="hover:scale-105 transition-transform duration-300 relative"
-          title="Click to open status panel | Drag to move Hooty around screen"
+          className={`transition-transform duration-300 ${
+            facingDirection === 'left' ? '-scale-x-100' : 'scale-x-100'
+          }`}
         >
           <OwlMascot
             state={mascotState}
             healthScore={overallHealthScore}
             nextResetSeconds={nextResetSeconds}
           />
-        </div>
-
-        {/* Flying Badge Indicator */}
-        <div data-tauri-drag-region className="mt-0.5 px-2 py-0.5 rounded-full bg-slate-950/90 border border-slate-800 text-[10px] font-mono text-cyan-300 shadow flex items-center gap-1">
-          <Rocket className="w-3 h-3 text-emerald-400 animate-pulse" />
-          <span>{overallHealthScore}%</span>
         </div>
       </div>
     );
@@ -232,7 +215,7 @@ export default function App() {
             <button
               onClick={() => setMode('flying-pet')}
               className="p-1 rounded-md bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 transition-colors"
-              title="Fly Mascot on Desktop"
+              title="Fly Mascot Across Desktop"
             >
               <Rocket className="w-3.5 h-3.5" />
             </button>
@@ -298,7 +281,7 @@ export default function App() {
           />
 
           <span className="text-[10px] text-slate-400 font-mono mt-0.5 opacity-75 hover:opacity-100 transition-opacity">
-            🚀 Click 🚀 button in header to release Hooty to fly on your desktop screen!
+            🚀 Click 🚀 button in header to let Hooty fly freely across your desktop!
           </span>
         </div>
 
