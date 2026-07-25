@@ -148,16 +148,23 @@ export default function App() {
     } catch (e) {}
   }, []);
 
-  // Only show providers with a REAL verified auth signal (valid key format or a
+  // Only show providers with a REAL verified auth signal (a live-verified API key or a
   // genuinely detected local session folder) — see providerService.ts.
   const providerList = Object.values(providers);
   const authenticatedProviders = providerList.filter((p) => p.isAuthenticated);
 
-  const totalPercent = authenticatedProviders.length
-    ? authenticatedProviders.reduce((sum, p) => sum + p.remainingPercent, 0)
+  // The mascot's health score is only ever computed from providers with a REAL
+  // live quota number. Providers connected via local-session detection (or a key
+  // whose provider doesn't expose quota headers) have no real percentage to average —
+  // including their placeholder numbers here would just reintroduce mock data one
+  // level up. With no real numbers at all, default to a neutral 100 (happy/flying)
+  // rather than inventing a score.
+  const scorableProviders = authenticatedProviders.filter((p) => p.hasQuotaData);
+  const totalPercent = scorableProviders.length
+    ? scorableProviders.reduce((sum, p) => sum + p.remainingPercent, 0)
     : 100;
-  const overallHealthScore = authenticatedProviders.length
-    ? Math.round(totalPercent / authenticatedProviders.length)
+  const overallHealthScore = scorableProviders.length
+    ? Math.round(totalPercent / scorableProviders.length)
     : 100;
 
   const getMascotState = (score: number, items: ProviderUsage[]): MascotState => {
@@ -171,9 +178,9 @@ export default function App() {
   // A manual "Preview Mascot States (Demo)" click always wins over real telemetry,
   // and reverts on its own — it must never leave fabricated numbers sitting in
   // real provider data (that was the old bug).
-  const mascotState = mascotPreviewOverride ?? getMascotState(overallHealthScore, authenticatedProviders);
+  const mascotState = mascotPreviewOverride ?? getMascotState(overallHealthScore, scorableProviders);
 
-  const lowProviders = authenticatedProviders.filter((p) => p.remainingPercent < 40);
+  const lowProviders = scorableProviders.filter((p) => p.remainingPercent < 40);
   const nextResetSeconds = lowProviders.length
     ? Math.min(...lowProviders.map((p) => p.resetTimerSeconds))
     : 6240;

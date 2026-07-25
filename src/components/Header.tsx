@@ -1,5 +1,6 @@
 import React from 'react';
-import { ShieldCheck, Settings, RefreshCcw, Pin, Rocket, HelpCircle, Move } from 'lucide-react';
+import { invoke } from '@tauri-apps/api/core';
+import { ShieldCheck, Settings, RefreshCcw, Minus, Rocket, HelpCircle, Move } from 'lucide-react';
 import { MascotState } from '../types';
 
 interface HeaderProps {
@@ -70,6 +71,15 @@ export const Header: React.FC<HeaderProps> = ({
           title="Refresh Telemetry"
         >
           <RefreshCcw className="w-3.5 h-3.5" />
+        </button>
+
+        {/* Minimize to menu bar / tray */}
+        <button
+          onClick={() => invoke('hide_window').catch(() => {})}
+          className="p-1 rounded-md bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/60 text-slate-300 transition-colors"
+          title="Minimize to Menu Bar"
+        >
+          <Minus className="w-3.5 h-3.5" />
         </button>
 
         {/* Fly Mascot on Desktop */}

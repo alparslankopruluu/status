@@ -58,6 +58,109 @@ fn detect_local_session(provider: String) -> LocalSessionInfo {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ApiKeyCheckResult {
+    pub valid: bool,
+    pub status_code: u16,
+    /// Only set when the provider's response actually included a rate-limit header —
+    /// never a guess or placeholder.
+    pub rate_limit_remaining: Option<i64>,
+    pub rate_limit_limit: Option<i64>,
+    pub rate_limit_reset_seconds: Option<i64>,
+    pub detail: String,
+}
+
+/// Scans a response's headers for any of the rate-limit header conventions used by
+/// Anthropic / OpenAI-style APIs. Returns None for a field if the provider's response
+/// simply doesn't include it — callers must not invent a number in that case.
+fn parse_rate_limit_headers(headers: &reqwest::header::HeaderMap) -> (Option<i64>, Option<i64>, Option<i64>) {
+    let get_i64 = |names: &[&str]| -> Option<i64> {
+        for name in names {
+            if let Some(v) = headers.get(*name) {
+                if let Ok(s) = v.to_str() {
+                    if let Ok(n) = s.parse::<i64>() {
+                        return Some(n);
+                    }
+                }
+            }
+        }
+        None
+    };
+    let remaining = get_i64(&[
+        "anthropic-ratelimit-requests-remaining",
+        "x-ratelimit-remaining-requests",
+    ]);
+    let limit = get_i64(&[
+        "anthropic-ratelimit-requests-limit",
+        "x-ratelimit-limit-requests",
+    ]);
+    let reset = get_i64(&[
+        "anthropic-ratelimit-requests-reset",
+        "x-ratelimit-reset-requests",
+    ]);
+    (remaining, limit, reset)
+}
+
+/// Makes one real, lightweight (free/near-free "list models") request to the
+/// provider using the user's key, to confirm it's actually valid — and opportunistically
+/// reads real rate-limit headers if the provider's response happens to include them.
+/// Never fabricates a percentage: if no header is present, the Option fields stay None.
+#[tauri::command]
+async fn verify_api_key(provider: String, api_key: String) -> ApiKeyCheckResult {
+    let client = reqwest::Client::new();
+    let key = api_key.trim().to_string();
+
+    let request = match provider.as_str() {
+        "claude" => client
+            .get("https://api.anthropic.com/v1/models")
+            .header("x-api-key", &key)
+            .header("anthropic-version", "2023-06-01"),
+        "codex" => client.get("https://api.openai.com/v1/models").bearer_auth(&key),
+        "grok" => client.get("https://api.x.ai/v1/models").bearer_auth(&key),
+        "antigravity" => client.get(format!(
+            "https://generativelanguage.googleapis.com/v1beta/models?key={}",
+            key
+        )),
+        other => {
+            return ApiKeyCheckResult {
+                valid: false,
+                status_code: 0,
+                rate_limit_remaining: None,
+                rate_limit_limit: None,
+                rate_limit_reset_seconds: None,
+                detail: format!("Unknown provider: {other}"),
+            };
+        }
+    };
+
+    match request.send().await {
+        Ok(resp) => {
+            let status = resp.status();
+            let (remaining, limit, reset) = parse_rate_limit_headers(resp.headers());
+            ApiKeyCheckResult {
+                valid: status.is_success(),
+                status_code: status.as_u16(),
+                rate_limit_remaining: remaining,
+                rate_limit_limit: limit,
+                rate_limit_reset_seconds: reset,
+                detail: if status.is_success() {
+                    "Key verified".into()
+                } else {
+                    format!("Provider rejected this key (HTTP {})", status.as_u16())
+                },
+            }
+        }
+        Err(e) => ApiKeyCheckResult {
+            valid: false,
+            status_code: 0,
+            rate_limit_remaining: None,
+            rate_limit_limit: None,
+            rate_limit_reset_seconds: None,
+            detail: format!("Network error while contacting provider: {e}"),
+        },
+    }
+}
+
 #[tauri::command]
 fn hide_window<R: Runtime>(window: tauri::Window<R>) {
     let _ = window.hide();
@@ -120,6 +223,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             detect_local_session,
+            verify_api_key,
             hide_window,
             toggle_always_on_top
         ])

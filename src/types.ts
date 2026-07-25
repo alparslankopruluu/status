@@ -16,8 +16,12 @@ export interface ProviderUsage {
   maxTokens?: number;
   requestsLimit?: string;
   lastUpdated: string;
-  /** True once a real API key format or a local CLI session folder has been verified. */
+  /** True once a real API key has been verified live with the provider, or a local CLI session folder was found. */
   isAuthenticated?: boolean;
+  /** How isAuthenticated was established. */
+  authMethod?: 'api-key' | 'local-session' | 'none';
+  /** True only when remainingPercent came from a real rate-limit header in the provider's response. */
+  hasQuotaData?: boolean;
   /** True when remainingPercent is a placeholder/estimate rather than a verified live number. */
   isSimulated?: boolean;
   notes?: string;

@@ -68,6 +68,12 @@ export const ProviderCard: React.FC<ProviderCardProps> = ({ provider, onRefresh 
     );
   };
 
+  const getConnectionLabel = () => {
+    if (!provider.isAuthenticated) return '🟡 Not Connected';
+    if (provider.authMethod === 'api-key') return '🟢 Live (API Key)';
+    return '🟢 Connected (Local Session)';
+  };
+
   const getProgressColor = (percent: number) => {
     if (percent > 70) return 'bg-gradient-to-r from-emerald-500 to-cyan-500';
     if (percent >= 30) return 'bg-gradient-to-r from-amber-500 to-yellow-400';
@@ -96,7 +102,7 @@ export const ProviderCard: React.FC<ProviderCardProps> = ({ provider, onRefresh 
             <p className="text-[10px] text-slate-400">{provider.subtitle}</p>
           </div>
         </div>
-        {getStatusBadge(provider.remainingPercent)}
+        {provider.hasQuotaData ? getStatusBadge(provider.remainingPercent) : null}
       </div>
 
       {/* Authentication Status Connection Pill — honest, no fabricated "Live" claim */}
@@ -107,35 +113,41 @@ export const ProviderCard: React.FC<ProviderCardProps> = ({ provider, onRefresh 
         <div className="flex items-center gap-1.5">
           <ShieldCheck className={`w-3.5 h-3.5 ${provider.isAuthenticated ? 'text-emerald-400' : 'text-amber-400'}`} />
           <span className={`font-semibold ${provider.isAuthenticated ? 'text-emerald-300' : 'text-amber-300'}`}>
-            {provider.isAuthenticated ? '🟢 Session Verified' : '🟡 Not Connected'}
+            {getConnectionLabel()}
           </span>
         </div>
         <span className="font-mono text-slate-400 text-[9px]">{provider.lastUpdated}</span>
       </div>
 
-      {/* Progress Bar & Percentage */}
-      <div>
-        <div className="flex justify-between items-center text-xs mb-1">
-          <span className="text-slate-400 font-medium text-[11px]">
-            Remaining Quota {provider.isSimulated && <span className="text-slate-500">(estimated)</span>}
-          </span>
-          <span className="font-mono font-bold text-slate-100">{provider.remainingPercent}%</span>
+      {/* Progress Bar & Percentage — only ever rendered when hasQuotaData is real */}
+      {provider.hasQuotaData ? (
+        <div>
+          <div className="flex justify-between items-center text-xs mb-1">
+            <span className="text-slate-400 font-medium text-[11px]">Remaining Quota (live)</span>
+            <span className="font-mono font-bold text-slate-100">{provider.remainingPercent}%</span>
+          </div>
+          <div className="w-full h-2 rounded-full bg-slate-900/90 overflow-hidden p-0.5 border border-slate-800">
+            <div
+              className={`h-full rounded-full transition-all duration-500 ${getProgressColor(
+                provider.remainingPercent
+              )}`}
+              style={{ width: `${Math.max(4, provider.remainingPercent)}%` }}
+            />
+          </div>
         </div>
-        <div className="w-full h-2 rounded-full bg-slate-900/90 overflow-hidden p-0.5 border border-slate-800">
-          <div
-            className={`h-full rounded-full transition-all duration-500 ${getProgressColor(
-              provider.remainingPercent
-            )}`}
-            style={{ width: `${Math.max(4, provider.remainingPercent)}%` }}
-          />
-        </div>
-      </div>
+      ) : (
+        <p className="text-[11px] text-slate-500 leading-snug px-0.5">{provider.notes}</p>
+      )}
 
       {/* Details & Direct Auth Button Footer */}
       <div className="flex items-center justify-between pt-1.5 border-t border-slate-800/60 text-[10px] text-slate-400">
         <div className="flex items-center gap-1 font-mono">
-          <Clock className="w-3 h-3 text-slate-500" />
-          <span>{formatTimer(provider.resetTimerSeconds)}</span>
+          {provider.hasQuotaData && (
+            <>
+              <Clock className="w-3 h-3 text-slate-500" />
+              <span>{formatTimer(provider.resetTimerSeconds)}</span>
+            </>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
