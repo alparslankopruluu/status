@@ -1,181 +1,159 @@
 import React from 'react';
-import { ProviderUsage } from '../types';
-import { Bot, Cpu, Sparkles, Terminal, Clock, RefreshCw, AlertTriangle, CheckCircle2, ExternalLink, ShieldCheck, Key } from 'lucide-react';
+import { Bot, Cpu, Sparkles, Terminal, Clock, RefreshCw, Github, ShieldCheck, ShieldAlert, FlaskConical } from 'lucide-react';
+import { ProviderMeta, ProviderSnapshot, SourceKind, UsageWindow } from '../types';
+import { isStale, SOURCE_LABELS, secondsUntilReset } from '../services/providerService';
 
 interface ProviderCardProps {
-  provider: ProviderUsage;
+  meta: ProviderMeta;
+  snapshot: ProviderSnapshot;
+  nowSeconds: number;
   onRefresh?: (id: string) => void;
 }
 
-export const ProviderCard: React.FC<ProviderCardProps> = ({ provider, onRefresh }) => {
-  // Direct target Auth & API Key generation URLs
-  const getProviderAuthUrl = (id: string) => {
-    switch (id) {
-      case 'claude':
-        return 'https://console.anthropic.com/settings/keys';
-      case 'antigravity':
-        return 'https://aistudio.google.com/app/apikey'; // Direct API key creation screen!
-      case 'grok':
-        return 'https://console.x.ai';
-      case 'codex':
-        return 'https://platform.openai.com/api-keys';
-      default:
-        return 'https://github.com';
-    }
-  };
+const PROVIDER_ICONS: Record<string, React.ReactNode> = {
+  claude: <Bot className="w-5 h-5 text-amber-400" />,
+  grok: <Cpu className="w-5 h-5 text-emerald-400" />,
+  codex: <Terminal className="w-5 h-5 text-purple-400" />,
+  gemini: <Sparkles className="w-5 h-5 text-cyan-400" />,
+  antigravity: <Sparkles className="w-5 h-5 text-blue-400" />,
+  copilot: <Github className="w-5 h-5 text-slate-300" />,
+};
 
-  const getProviderIcon = (id: string) => {
-    switch (id) {
-      case 'claude':
-        return <Bot className="w-5 h-5 text-amber-400" />;
-      case 'antigravity':
-        return <Sparkles className="w-5 h-5 text-cyan-400" />;
-      case 'grok':
-        return <Cpu className="w-5 h-5 text-emerald-400" />;
-      case 'codex':
-        return <Terminal className="w-5 h-5 text-purple-400" />;
-      default:
-        return <Bot className="w-5 h-5 text-slate-400" />;
-    }
-  };
+/** Full literal class strings — Tailwind needs complete names at build time. */
+const SOURCE_STYLES: Record<SourceKind, { chip: string; icon: React.ReactNode }> = {
+  official: {
+    chip: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40',
+    icon: <ShieldCheck className="w-3 h-3" />,
+  },
+  unofficial: {
+    chip: 'bg-amber-500/15 text-amber-300 border-amber-500/40',
+    icon: <ShieldAlert className="w-3 h-3" />,
+  },
+  unverified: {
+    chip: 'bg-slate-700/40 text-slate-300 border-slate-600/60',
+    icon: <FlaskConical className="w-3 h-3" />,
+  },
+  unavailable: {
+    chip: 'bg-slate-800/60 text-slate-400 border-slate-700/60',
+    icon: <ShieldAlert className="w-3 h-3" />,
+  },
+};
 
-  const getStatusBadge = (percent: number) => {
-    if (percent > 70) {
-      return (
-        <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
-          <CheckCircle2 className="w-3 h-3" /> Healthy
-        </span>
-      );
-    }
-    if (percent >= 30) {
-      return (
-        <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-          Normal
-        </span>
-      );
-    }
-    if (percent >= 10) {
-      return (
-        <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-orange-500/20 text-orange-300 border border-orange-500/30 flex items-center gap-1">
-          <AlertTriangle className="w-3 h-3" /> Low
-        </span>
-      );
-    }
-    return (
-      <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-red-500/20 text-red-300 border border-red-500/30 animate-pulse flex items-center gap-1">
-        <AlertTriangle className="w-3 h-3" /> Exhausted
-      </span>
-    );
-  };
+function barColor(usedPercent: number): string {
+  if (usedPercent >= 90) return 'bg-gradient-to-r from-red-600 to-purple-600';
+  if (usedPercent >= 70) return 'bg-gradient-to-r from-orange-500 to-amber-600';
+  if (usedPercent >= 30) return 'bg-gradient-to-r from-amber-500 to-yellow-400';
+  return 'bg-gradient-to-r from-emerald-500 to-cyan-500';
+}
 
-  const getConnectionLabel = () => {
-    if (!provider.isAuthenticated) return '🟡 Not Connected';
-    if (provider.authMethod === 'api-key') return '🟢 Live (API Key)';
-    return '🟢 Connected (Local Session)';
-  };
+function formatCountdown(seconds: number): string {
+  const days = Math.floor(seconds / 86400);
+  const hrs = Math.floor((seconds % 86400) / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  if (days > 0) return `${days}d ${hrs}h`;
+  if (hrs > 0) return `${hrs}h ${mins}m`;
+  return `${mins}m`;
+}
 
-  const getProgressColor = (percent: number) => {
-    if (percent > 70) return 'bg-gradient-to-r from-emerald-500 to-cyan-500';
-    if (percent >= 30) return 'bg-gradient-to-r from-amber-500 to-yellow-400';
-    if (percent >= 10) return 'bg-gradient-to-r from-orange-500 to-amber-600';
-    return 'bg-gradient-to-r from-red-600 to-purple-600';
-  };
+function formatCapturedAt(unixSeconds: number): string {
+  return new Date(unixSeconds * 1000).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
 
-  const formatTimer = (seconds: number) => {
-    const hrs = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    return `${hrs}h ${mins}m reset`;
-  };
+const WindowRow: React.FC<{ window: UsageWindow; nowSeconds: number; dimmed: boolean }> = ({
+  window,
+  nowSeconds,
+  dimmed,
+}) => {
+  const remaining = secondsUntilReset(window, nowSeconds);
+  const pct = Math.min(100, Math.max(0, window.used_percent));
 
   return (
-    <div className="glass-card rounded-xl p-3 flex flex-col gap-2 transition-all">
-      {/* Top Title & Health Status Badge */}
+    <div className={dimmed ? 'opacity-60' : ''}>
+      <div className="flex justify-between items-center mb-1">
+        <span className="text-[11px] font-medium text-slate-400">{window.label}</span>
+        <div className="flex items-center gap-2">
+          <span className="font-mono font-bold text-slate-100 text-xs">{pct.toFixed(0)}% used</span>
+          {remaining !== null && (
+            <span className="text-[10px] font-mono text-slate-500 flex items-center gap-1">
+              <Clock className="w-3 h-3" />
+              {formatCountdown(remaining)}
+            </span>
+          )}
+        </div>
+      </div>
+      <div className="w-full h-2 rounded-full bg-slate-900/90 overflow-hidden p-0.5 border border-slate-800">
+        <div
+          className={`h-full rounded-full transition-all duration-500 ${barColor(pct)}`}
+          style={{ width: `${Math.max(3, pct)}%` }}
+        />
+      </div>
+    </div>
+  );
+};
+
+export const ProviderCard: React.FC<ProviderCardProps> = ({
+  meta,
+  snapshot,
+  nowSeconds,
+  onRefresh,
+}) => {
+  const stale = isStale(snapshot, nowSeconds);
+  const source = SOURCE_STYLES[snapshot.source_kind];
+  const hasWindows = snapshot.windows.length > 0;
+
+  return (
+    <div className="glass-card rounded-xl p-3 flex flex-col gap-2.5 transition-all">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <div className="p-2 rounded-lg bg-slate-900/90 border border-slate-800">
-            {getProviderIcon(provider.id)}
+            {PROVIDER_ICONS[meta.id]}
           </div>
           <div>
-            <h4 className="text-sm font-semibold text-slate-100 flex items-center gap-1.5">
-              {provider.name}
-            </h4>
-            <p className="text-[10px] text-slate-400">{provider.subtitle}</p>
+            <h4 className="text-sm font-semibold text-slate-100">{meta.name}</h4>
+            <p className="text-[10px] text-slate-400">{meta.subtitle}</p>
           </div>
         </div>
-        {typeof provider.remainingPercent === 'number' && provider.hasQuotaData
-          ? getStatusBadge(provider.remainingPercent)
-          : null}
+
+        {/* Provenance is always visible so an unofficial reading is never mistaken for an official one. */}
+        <span
+          className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border flex items-center gap-1 ${source.chip}`}
+          title={snapshot.note ?? undefined}
+        >
+          {source.icon}
+          {SOURCE_LABELS[snapshot.source_kind]}
+        </span>
       </div>
 
-      {/* Authentication Status Connection Pill — honest, no fabricated "Live" claim */}
-      <div
-        className="flex items-center justify-between px-2 py-1 rounded-lg bg-slate-950/80 border border-slate-800/80 text-[10px]"
-        title={provider.notes}
-      >
-        <div className="flex items-center gap-1.5">
-          <ShieldCheck className={`w-3.5 h-3.5 ${provider.isAuthenticated ? 'text-emerald-400' : 'text-amber-400'}`} />
-          <span className={`font-semibold ${provider.isAuthenticated ? 'text-emerald-300' : 'text-amber-300'}`}>
-            {getConnectionLabel()}
-          </span>
-        </div>
-        <span className="font-mono text-slate-400 text-[9px]">{provider.lastUpdated}</span>
-      </div>
-
-      {/* Progress Bar & Percentage — only ever rendered from a real rate-limit header */}
-      {typeof provider.remainingPercent === 'number' && provider.hasQuotaData ? (
-        <div>
-          <div className="flex justify-between items-center text-xs mb-1">
-            <span className="text-slate-400 font-medium text-[11px]">Remaining Quota (live)</span>
-            <span className="font-mono font-bold text-slate-100">{provider.remainingPercent}%</span>
-          </div>
-          <div className="w-full h-2 rounded-full bg-slate-900/90 overflow-hidden p-0.5 border border-slate-800">
-            <div
-              className={`h-full rounded-full transition-all duration-500 ${getProgressColor(
-                provider.remainingPercent
-              )}`}
-              style={{ width: `${Math.max(4, provider.remainingPercent)}%` }}
-            />
-          </div>
+      {hasWindows ? (
+        <div className="flex flex-col gap-2.5">
+          {snapshot.windows.map((w) => (
+            <WindowRow key={w.label} window={w} nowSeconds={nowSeconds} dimmed={stale} />
+          ))}
         </div>
       ) : (
-        <p className="text-[11px] text-slate-500 leading-snug px-0.5">{provider.notes}</p>
+        <p className="text-[11px] text-slate-500 leading-snug px-0.5">{snapshot.note}</p>
       )}
 
-      {/* Details & Direct Auth Button Footer */}
-      <div className="flex items-center justify-between pt-1.5 border-t border-slate-800/60 text-[10px] text-slate-400">
-        <div className="flex items-center gap-1 font-mono">
-          {typeof provider.resetTimerSeconds === 'number' && provider.hasQuotaData && (
-            <>
-              <Clock className="w-3 h-3 text-slate-500" />
-              <span>{formatTimer(provider.resetTimerSeconds)}</span>
-            </>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          {/* Direct Auth / API Key Web Link */}
-          <a
-            href={getProviderAuthUrl(provider.id)}
-            target="_blank"
-            rel="noreferrer"
-            className="px-2 py-0.5 rounded bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-[10px] text-cyan-300 hover:text-cyan-100 transition-colors flex items-center gap-1 font-semibold"
-            title={`Open direct API key / Auth page for ${provider.name}`}
+      <div className="flex items-center justify-between pt-1.5 border-t border-slate-800/60 text-[10px] text-slate-500">
+        <span className="font-mono">
+          {hasWindows
+            ? stale
+              ? `as of ${formatCapturedAt(snapshot.captured_at)}`
+              : 'current'
+            : '—'}
+        </span>
+        {onRefresh && (
+          <button
+            onClick={() => onRefresh(meta.id)}
+            className="p-1 hover:text-slate-200 transition-colors text-slate-400"
+            title="Refresh this provider"
           >
-            <Key className="w-2.5 h-2.5" />
-            <span>Get API Key</span>
-            <ExternalLink className="w-2.5 h-2.5" />
-          </a>
-
-          {onRefresh && (
-            <button
-              onClick={() => onRefresh(provider.id)}
-              className="p-1 hover:text-slate-200 transition-colors text-slate-400"
-              title="Refresh provider telemetry"
-            >
-              <RefreshCw className="w-3 h-3" />
-            </button>
-          )}
-        </div>
+            <RefreshCw className="w-3 h-3" />
+          </button>
+        )}
       </div>
     </div>
   );

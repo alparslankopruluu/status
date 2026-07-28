@@ -1,43 +1,46 @@
-export type HealthStatus = 'healthy' | 'warning' | 'critical' | 'exhausted';
-
-/** `idle` = no real quota data available; the mascot must make no health claim at all. */
 export type MascotState = 'idle' | 'flying' | 'alert' | 'tired' | 'sleeping';
 
-export type ProviderId = 'claude' | 'antigravity' | 'grok' | 'codex';
+export type ProviderId = 'claude' | 'grok' | 'codex' | 'gemini' | 'antigravity' | 'copilot';
 
-export interface ProviderUsage {
+/**
+ * How much a number can be trusted. Mirrors the Rust `SourceKind` and is rendered as a
+ * badge, so a reverse-engineered reading is never mistaken for an official one.
+ */
+export type SourceKind = 'official' | 'unofficial' | 'unverified' | 'unavailable';
+
+/** One quota window (5-hour rolling, weekly, monthly credits…) exactly as the source reported it. */
+export interface UsageWindow {
+  label: string;
+  used_percent: number;
+  resets_at: number | null;
+}
+
+/** The single shape every provider adapter returns. */
+export interface ProviderSnapshot {
+  provider: ProviderId;
+  /** Empty means "show no percentage" — never "show zero". */
+  windows: UsageWindow[];
+  source_kind: SourceKind;
+  /** Unix seconds; lets the UI mark a reading as stale. */
+  captured_at: number;
+  note: string | null;
+}
+
+/** Presentation metadata that doesn't come from the provider itself. */
+export interface ProviderMeta {
   id: ProviderId;
   name: string;
   subtitle: string;
-  iconName: string;
-  /** Only ever set from a real rate-limit header. `undefined` means "we genuinely don't know". */
-  remainingPercent?: number; // 0 - 100
-  status?: HealthStatus;
-  /** Only ever set from a real rate-limit reset header. */
-  resetTimerSeconds?: number;
-  usedTokens?: number;
-  maxTokens?: number;
-  requestsLimit?: string;
-  lastUpdated: string;
-  /** True once a real API key has been verified live with the provider, or a local CLI session folder was found. */
-  isAuthenticated?: boolean;
-  /** How isAuthenticated was established. */
-  authMethod?: 'api-key' | 'local-session' | 'none';
-  /** True only when remainingPercent came from a real rate-limit header in the provider's response. */
-  hasQuotaData?: boolean;
-  /** True when remainingPercent is a placeholder/estimate rather than a verified live number. */
-  isSimulated?: boolean;
-  notes?: string;
 }
 
-export interface OverallSystemStatus {
-  /** `null` when no provider reported a real quota number. */
-  overallHealthScore: number | null;
-  mascotState: MascotState;
-  activeProvidersCount: number;
-  exhaustedProvidersCount: number;
-  nextResetSeconds: number | null;
-  providers: Record<ProviderId, ProviderUsage>;
+export interface StatuslineStatus {
+  installed: boolean;
+  current_command: string | null;
+  wrapped_command: string | null;
+  proposed_command: string;
+  settings_path: string;
+  /** Set when a higher-precedence settings file would override our registration. */
+  overridden_by: string | null;
 }
 
 export interface UserPreferences {
@@ -46,5 +49,4 @@ export interface UserPreferences {
   desktopNotifications: boolean;
   alwaysOnTop: boolean;
   theme: 'dark' | 'light' | 'system';
-  customPaths: Record<ProviderId, string>;
 }

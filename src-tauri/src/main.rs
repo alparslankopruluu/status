@@ -1,12 +1,45 @@
 // Prevents additional console window on Windows in release
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod model;
+mod sources;
+mod statusline_setup;
+
+use model::ProviderSnapshot;
 use serde::{Deserialize, Serialize};
+use statusline_setup::StatuslineStatus;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Manager, Runtime,
 };
+
+/// Returns the real usage windows a provider exposes, or an `Unavailable` snapshot with a
+/// plain explanation. Never returns an invented number.
+#[tauri::command]
+async fn fetch_provider_snapshot(provider: String) -> ProviderSnapshot {
+    sources::fetch(&provider).await
+}
+
+#[tauri::command]
+fn known_providers() -> Vec<String> {
+    sources::KNOWN_PROVIDERS.iter().map(|p| p.to_string()).collect()
+}
+
+#[tauri::command]
+fn statusline_status() -> StatuslineStatus {
+    statusline_setup::status()
+}
+
+#[tauri::command]
+fn install_statusline() -> Result<StatuslineStatus, String> {
+    statusline_setup::install()
+}
+
+#[tauri::command]
+fn uninstall_statusline() -> Result<StatuslineStatus, String> {
+    statusline_setup::uninstall()
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct LocalSessionInfo {
@@ -172,6 +205,13 @@ fn toggle_always_on_top<R: Runtime>(window: tauri::Window<R>, always_on_top: boo
 }
 
 fn main() {
+    // Claude Code invokes this same binary as its statusLine command. That path must run
+    // headless and exit before any windowing code is touched.
+    if std::env::args().any(|a| a == "--statusline") {
+        sources::claude::run_statusline_hook();
+        return;
+    }
+
     tauri::Builder::default()
         .setup(|app| {
             let quit_item = MenuItem::with_id(app, "quit", "Quit StatusOwl", true, None::<&str>)?;
@@ -241,6 +281,11 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            fetch_provider_snapshot,
+            known_providers,
+            statusline_status,
+            install_statusline,
+            uninstall_statusline,
             detect_local_session,
             verify_api_key,
             hide_window,

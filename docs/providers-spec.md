@@ -1,80 +1,115 @@
-# docs/providers-spec.md — Telemetry & Authentication Specification
+# docs/providers-spec.md — Where every number comes from
 
-How StatusOwl decides what it is allowed to show. The governing rule:
+The governing rule:
 
-> **Never display a number StatusOwl did not actually measure.** If a value isn't
-> present in a real provider response, nothing is rendered in its place — no
-> estimate, no placeholder, no seeded default.
-
----
-
-## ⚠️ API quota is not subscription quota
-
-This is the single most important thing to understand about this app.
-
-An **API key** (`sk-ant-…`, `AIzaSy…`, `xai-…`, `sk-proj-…`) measures your usage of the
-provider's **developer API**, billed per token. Your **Claude Code / Antigravity
-subscription** (Pro, Max, etc.) — including Claude Code's 5-hour rolling limit — is a
-**completely separate system**, and providers do not expose that subscription usage
-through any public API.
-
-Consequence: **a perfectly valid Anthropic API key cannot show your Claude Code
-subscription limit.** StatusOwl says so explicitly in the Settings and Onboarding
-screens rather than quietly showing an unrelated number.
+> **Never display a number StatusOwl did not actually measure.** If a value isn't present
+> in a real source response, nothing is rendered in its place — no estimate, no placeholder,
+> no seeded default.
 
 ---
 
-## Authentication paths
+## Source × trust matrix
 
-### 1. Verified API key (the only path that puts a tool in the monitored list)
+| Provider | Source | Trust label | Verified |
+|---|---|---|---|
+| **Claude Code** | Claude Code statusline hook | `Official` | ✅ end-to-end |
+| **xAI Grok** | `~/.grok/auth.json` OAuth → xAI rate-limit endpoint | `Unofficial` | ✅ credentials confirmed present |
+| **OpenAI Codex** | `~/.codex/auth.json` OAuth → ChatGPT backend | `Unverified` | ❌ Codex CLI not installed |
+| **Gemini CLI** | `~/.gemini/oauth_creds.json` | `Unverified` | ❌ Gemini CLI not installed |
+| **Antigravity** | `~/.gemini/antigravity-ide` presence only | `Unavailable` | ⚠️ installed, but exposes no readable quota |
+| **GitHub Copilot** | GitHub device flow | `Unverified` | ❌ not signed in |
+| **Cursor** | — | **out of scope** | — |
 
-`verify_api_key` (Rust, `src-tauri/src/main.rs`) makes one real, lightweight
-`GET /models`-style request with the user's key:
+**Cursor is deliberately unsupported.** Its usage is only reachable through browser session
+cookies, and reading browser cookies is out of scope — it would require Full Disk Access and
+Keychain permissions on macOS. Copilot stays in scope because it uses the GitHub *device
+flow*, not cookies.
 
-| Provider | Endpoint | Auth |
-|---|---|---|
-| `claude` | `https://api.anthropic.com/v1/models` | `x-api-key` + `anthropic-version` |
-| `codex` | `https://api.openai.com/v1/models` | Bearer |
-| `grok` | `https://api.x.ai/v1/models` | Bearer |
-| `antigravity` | `https://generativelanguage.googleapis.com/v1beta/models` | `?key=` |
-
-The call runs in Rust so it isn't blocked by browser CORS. A key counts as
-authenticated **only** when this request actually succeeds — a matching key *format*
-is never sufficient on its own.
-
-### 2. Local session folder (informational only — NOT listed)
-
-`detect_local_session` checks whether `~/.claude/`, `~/.gemini/antigravity-ide/`,
-`~/.grok/` or `~/.codex/` exists and is non-empty. This proves only that the tool is
-**installed**; none of these expose readable quota data on disk. Such providers are
-therefore reported as *not* authenticated and are **kept out of the monitored list**,
-surfaced only as a one-line "detected but exposing no readable quota" note in the
-empty state.
+The `Unverified` adapters are written but have never run against a live install. They return
+an explanation rather than a number when their credential file is absent, and are badged so
+their output is never mistaken for the official feed.
 
 ---
 
-## Quota numbers
+## Claude Code — the official path
 
-A percentage is rendered **only** when the provider's response carried real
-rate-limit headers, parsed by `parse_rate_limit_headers`:
+Claude Code pipes session JSON on stdin to whatever is configured as `statusLine.command`.
+That payload carries the real subscription windows:
 
-- `anthropic-ratelimit-requests-remaining` / `-limit` / `-reset`
-- `x-ratelimit-remaining-requests` / `x-ratelimit-limit-requests` / `x-ratelimit-reset-requests`
+```json
+"rate_limits": {
+  "five_hour": { "used_percentage": 23.5, "resets_at": 1738425600 },
+  "seven_day": { "used_percentage": 41.2, "resets_at": 1738857600 }
+}
+```
 
-If a header is absent the corresponding field stays `undefined` — it is never backfilled
-from a previous value or a seed constant. In that case the card shows an explanatory
-sentence instead of a number, and a verified-but-quota-less provider is still listed
-(the key genuinely works) with no percentage.
+StatusOwl registers **its own binary** as that command (`status-owl --statusline`), captures
+the numbers, and writes a minimal snapshot to `~/.statusowl/statusline.json`.
 
-## Aggregate health & mascot
+**Documented constraints, surfaced honestly in the UI:**
+- `rate_limits` appears only for Claude.ai **Pro/Max** subscribers, and only **after the first
+  API response** in a session. Each window may be independently absent.
+- It updates only while Claude Code is running — what StatusOwl holds is always a
+  point-in-time snapshot, never a live feed. Readings older than 15 minutes are dimmed and
+  stamped "as of HH:MM".
+- A window whose `resets_at` has passed is **dropped**, not shown: the percentage behind it is
+  no longer true.
 
-`overallHealthScore` averages **only** providers that returned a real percentage. With
-none, it is `null`:
+### Installation safety
 
-- Header pill renders `—` in neutral grey, not a number.
-- Mascot enters the `idle` state: the calm perched silhouette, desaturated, no glow, no
-  pulsing "live" dot, badge reads **"No Quota Data"**.
-- The reset countdown renders only when a real reset header was returned.
+Registering the hook edits the user's own Claude Code config, so `install_statusline`:
+- takes a backup (`settings.json.statusowl-backup`) before the first write,
+- performs a **field-level merge** — only `statusLine` is touched, every other key survives,
+- **wraps** any pre-existing status line instead of destroying it: the old command is stored
+  in `~/.statusowl/wrapped-statusline.txt`, invoked with the same stdin, and its output is what
+  the terminal shows,
+- quotes the executable path, so an app in a directory with spaces still works,
+- detects a **higher-precedence** settings file and warns. Precedence is
+  `managed > CLI > .claude/settings.local.json > .claude/settings.json > ~/.claude/settings.json`,
+  so a project-level file silently wins over our user-level registration.
 
-No health claim (`Healthy Quota (>70%)` and friends) is ever shown without a measured
-number behind it.
+The hook runs inside the user's Claude Code session and therefore **never fails loudly**:
+malformed JSON, empty stdin, or an unwritable snapshot all still print a harmless line and
+exit `0`.
+
+---
+
+## Why there is no estimation layer
+
+Claude-Code-Usage-Monitor pairs official `rate_limits` with a **P90 estimate** derived from
+past usage when the official data is missing, labelling it `local_estimate`. CodexBar takes a
+similar provenance-labelled approach.
+
+StatusOwl implements **only the measured layer**. An estimated percentage is exactly the kind
+of fabricated number this project removed, and re-adding it — even labelled — would undo that.
+When there is no measurement, the UI says so.
+
+---
+
+## Data model
+
+Every adapter returns one shape, so adding a provider needs no UI change:
+
+```rust
+struct UsageWindow  { label: String, used_percent: f64, resets_at: Option<i64> }
+struct ProviderSnapshot {
+    provider: String,
+    windows: Vec<UsageWindow>,   // empty ⇒ render no percentage (NOT zero)
+    source_kind: SourceKind,     // Official | Unofficial | Unverified | Unavailable
+    captured_at: i64,
+    note: Option<String>,        // shown to the user when there are no windows
+}
+```
+
+A provider may report any number of windows (5-hour, weekly, monthly credits…) and the card
+renders each with its own live countdown.
+
+---
+
+## Privacy
+
+- The statusline payload also contains `cwd`, `session_id`, PR details and more. **Only** the
+  model name, context percentage, and the two rate-limit windows are persisted.
+- Browser cookies are never read, on any platform.
+- All credentials are reused in place from the provider's own CLI config; StatusOwl stores no
+  passwords and creates no new sign-ins.
