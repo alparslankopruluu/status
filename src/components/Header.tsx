@@ -4,7 +4,8 @@ import { ShieldCheck, Settings, RefreshCcw, Minus, Rocket, HelpCircle, Move } fr
 import { MascotState } from '../types';
 
 interface HeaderProps {
-  healthScore: number;
+  /** `null` when no provider reported a real quota number — rendered as "—". */
+  healthScore: number | null;
   mascotState: MascotState;
   onOpenSettings: () => void;
   onOpenOnboarding: () => void;
@@ -48,19 +49,31 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Quick Actions & Controls */}
       <div className="flex items-center gap-1.5 no-drag">
-        {/* Health Score Pill */}
-        <div className="px-2 py-0.5 rounded-full bg-slate-950 border border-slate-800 flex items-center gap-1 text-[11px] font-mono">
-          <ShieldCheck className="w-3 h-3 text-emerald-400" />
+        {/* Health Score Pill — shows "—" rather than inventing a number when no
+            provider returned a real rate-limit header. */}
+        <div
+          className="px-2 py-0.5 rounded-full bg-slate-950 border border-slate-800 flex items-center gap-1 text-[11px] font-mono"
+          title={
+            healthScore === null
+              ? 'No live quota data — connect an API key that exposes rate-limit headers'
+              : 'Average remaining quota across connected providers'
+          }
+        >
+          <ShieldCheck
+            className={`w-3 h-3 ${healthScore === null ? 'text-slate-600' : 'text-emerald-400'}`}
+          />
           <span
             className={`font-bold ${
-              healthScore > 70
+              healthScore === null
+                ? 'text-slate-500'
+                : healthScore > 70
                 ? 'text-emerald-400'
                 : healthScore >= 30
                 ? 'text-amber-400'
                 : 'text-red-400'
             }`}
           >
-            {healthScore}%
+            {healthScore === null ? '—' : `${healthScore}%`}
           </span>
         </div>
 

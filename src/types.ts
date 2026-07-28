@@ -1,6 +1,7 @@
 export type HealthStatus = 'healthy' | 'warning' | 'critical' | 'exhausted';
 
-export type MascotState = 'flying' | 'alert' | 'tired' | 'sleeping';
+/** `idle` = no real quota data available; the mascot must make no health claim at all. */
+export type MascotState = 'idle' | 'flying' | 'alert' | 'tired' | 'sleeping';
 
 export type ProviderId = 'claude' | 'antigravity' | 'grok' | 'codex';
 
@@ -9,9 +10,11 @@ export interface ProviderUsage {
   name: string;
   subtitle: string;
   iconName: string;
-  remainingPercent: number; // 0 - 100
-  status: HealthStatus;
-  resetTimerSeconds: number; // Countdown to 5h / daily reset
+  /** Only ever set from a real rate-limit header. `undefined` means "we genuinely don't know". */
+  remainingPercent?: number; // 0 - 100
+  status?: HealthStatus;
+  /** Only ever set from a real rate-limit reset header. */
+  resetTimerSeconds?: number;
   usedTokens?: number;
   maxTokens?: number;
   requestsLimit?: string;
@@ -28,11 +31,12 @@ export interface ProviderUsage {
 }
 
 export interface OverallSystemStatus {
-  overallHealthScore: number;
+  /** `null` when no provider reported a real quota number. */
+  overallHealthScore: number | null;
   mascotState: MascotState;
   activeProvidersCount: number;
   exhaustedProvidersCount: number;
-  nextResetSeconds: number;
+  nextResetSeconds: number | null;
   providers: Record<ProviderId, ProviderUsage>;
 }
 

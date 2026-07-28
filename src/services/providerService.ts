@@ -117,6 +117,9 @@ export class ProviderTelemetryService {
       if (!check.valid) {
         return {
           ...currentUsage,
+          remainingPercent: undefined,
+          status: undefined,
+          resetTimerSeconds: undefined,
           isAuthenticated: false,
           authMethod: 'none',
           hasQuotaData: false,
@@ -127,19 +130,21 @@ export class ProviderTelemetryService {
       }
 
       const hasQuota = check.rateLimitRemaining !== null && check.rateLimitLimit !== null && check.rateLimitLimit > 0;
+      // No fallback to any previous/seed value: if the provider didn't return a real
+      // rate-limit header, these stay undefined and the UI shows no number at all.
       const remainingPercent = hasQuota
         ? Math.round((check.rateLimitRemaining! / check.rateLimitLimit!) * 100)
-        : currentUsage.remainingPercent;
+        : undefined;
 
       return {
         ...currentUsage,
         remainingPercent,
-        status: hasQuota ? this.getHealthStatus(remainingPercent) : currentUsage.status,
-        resetTimerSeconds: check.rateLimitResetSeconds ?? currentUsage.resetTimerSeconds,
+        status: hasQuota ? this.getHealthStatus(remainingPercent!) : undefined,
+        resetTimerSeconds: check.rateLimitResetSeconds ?? undefined,
         isAuthenticated: true,
         authMethod: 'api-key',
         hasQuotaData: hasQuota,
-        isSimulated: !hasQuota,
+        isSimulated: false,
         lastUpdated: 'Just now (live)',
         notes: hasQuota
           ? `Live rate limit from ${PROVIDER_LABEL[id]}: ${check.rateLimitRemaining}/${check.rateLimitLimit} requests remaining.`
@@ -147,21 +152,30 @@ export class ProviderTelemetryService {
       };
     }
 
+    // Finding a config folder only proves the tool is installed — it carries no readable
+    // quota. Such providers are reported as NOT authenticated so they stay out of the
+    // monitored list entirely; the flag is kept purely so the UI can say "installed".
     const session = await this.detectLocalSession(id);
     if (session.exists && session.entries > 0) {
       return {
         ...currentUsage,
-        isAuthenticated: true,
+        remainingPercent: undefined,
+        status: undefined,
+        resetTimerSeconds: undefined,
+        isAuthenticated: false,
         authMethod: 'local-session',
         hasQuotaData: false,
         isSimulated: false,
-        lastUpdated: 'Local session detected',
-        notes: `Local session folder detected at ${session.path}. This tool doesn't expose quota data locally — add an API key above for live numbers if this provider supports it.`,
+        lastUpdated: 'Installed, no quota data',
+        notes: `Installed on this machine (${session.path}), but it exposes no readable quota. Add an API key to monitor it.`,
       };
     }
 
     return {
       ...currentUsage,
+      remainingPercent: undefined,
+      status: undefined,
+      resetTimerSeconds: undefined,
       isAuthenticated: false,
       authMethod: 'none',
       hasQuotaData: false,

@@ -13,58 +13,45 @@ import {
 } from './types';
 import { Activity, Sparkles, Maximize2, Move, Rocket, Key, PlusCircle, ShieldAlert } from 'lucide-react';
 
+// No seeded percentages, reset timers or quota strings live here on purpose: every
+// number the user sees must come from a real provider response. Anything unknown
+// stays `undefined` so the UI can honestly render "no data" instead of a placeholder.
 const INITIAL_PROVIDERS: Record<ProviderId, ProviderUsage> = {
   claude: {
     id: 'claude',
     name: 'Claude Code',
-    subtitle: '5h Rolling Limit & Org Quota',
+    subtitle: 'Anthropic API quota (not your subscription)',
     iconName: 'bot',
-    remainingPercent: 85,
-    status: 'healthy',
-    resetTimerSeconds: 12400,
-    requestsLimit: '1.2M / 1.5M tokens',
     lastUpdated: 'Not connected',
     isAuthenticated: false,
-    isSimulated: true,
+    hasQuotaData: false,
   },
   antigravity: {
     id: 'antigravity',
     name: 'Antigravity (Gemini)',
-    subtitle: 'IDE Telemetry & Model Limits',
+    subtitle: 'Google Gemini API quota',
     iconName: 'sparkles',
-    remainingPercent: 92,
-    status: 'healthy',
-    resetTimerSeconds: 28800,
-    requestsLimit: 'Daily Pro Tier',
     lastUpdated: 'Not connected',
     isAuthenticated: false,
-    isSimulated: true,
+    hasQuotaData: false,
   },
   grok: {
     id: 'grok',
     name: 'xAI Grok',
-    subtitle: 'Grok 3 & CLI Window',
+    subtitle: 'xAI API quota',
     iconName: 'cpu',
-    remainingPercent: 78,
-    status: 'healthy',
-    resetTimerSeconds: 7200,
-    requestsLimit: '5h Window Limit',
     lastUpdated: 'Not connected',
     isAuthenticated: false,
-    isSimulated: true,
+    hasQuotaData: false,
   },
   codex: {
     id: 'codex',
     name: 'OpenAI Codex',
-    subtitle: 'Agent Skills & Token Bucket',
+    subtitle: 'OpenAI API quota',
     iconName: 'terminal',
-    remainingPercent: 64,
-    status: 'healthy',
-    resetTimerSeconds: 15600,
-    requestsLimit: 'Tier 4 API',
     lastUpdated: 'Not connected',
     isAuthenticated: false,
-    isSimulated: true,
+    hasQuotaData: false,
   },
 };
 
@@ -148,27 +135,31 @@ export default function App() {
     } catch (e) {}
   }, []);
 
-  // Only show providers with a REAL verified auth signal (a live-verified API key or a
-  // genuinely detected local session folder) — see providerService.ts.
+  // Only list providers whose API key was actually verified live with the provider.
+  // Merely finding a local session folder proves the tool is installed, not that we
+  // can read any quota from it — so those are deliberately kept out of the list.
   const providerList = Object.values(providers);
-  const authenticatedProviders = providerList.filter((p) => p.isAuthenticated);
+  const authenticatedProviders = providerList.filter(
+    (p) => p.isAuthenticated && p.authMethod === 'api-key'
+  );
+  const installedButUnreadable = providerList.filter((p) => p.authMethod === 'local-session');
 
-  // The mascot's health score is only ever computed from providers with a REAL
-  // live quota number. Providers connected via local-session detection (or a key
-  // whose provider doesn't expose quota headers) have no real percentage to average —
-  // including their placeholder numbers here would just reintroduce mock data one
-  // level up. With no real numbers at all, default to a neutral 100 (happy/flying)
-  // rather than inventing a score.
-  const scorableProviders = authenticatedProviders.filter((p) => p.hasQuotaData);
-  const totalPercent = scorableProviders.length
-    ? scorableProviders.reduce((sum, p) => sum + p.remainingPercent, 0)
-    : 100;
-  const overallHealthScore = scorableProviders.length
-    ? Math.round(totalPercent / scorableProviders.length)
-    : 100;
+  // Health score comes ONLY from providers that returned a real rate-limit header.
+  // With no real numbers at all the score is null — the UI renders "—" rather than
+  // inventing a reassuring 100.
+  const scorableProviders = authenticatedProviders.filter(
+    (p) => p.hasQuotaData && typeof p.remainingPercent === 'number'
+  );
+  const overallHealthScore: number | null = scorableProviders.length
+    ? Math.round(
+        scorableProviders.reduce((sum, p) => sum + (p.remainingPercent ?? 0), 0) /
+          scorableProviders.length
+      )
+    : null;
 
-  const getMascotState = (score: number, items: ProviderUsage[]): MascotState => {
-    const hasExhausted = items.some((p) => p.remainingPercent < 10);
+  const getMascotState = (score: number | null, items: ProviderUsage[]): MascotState => {
+    if (score === null) return 'idle';
+    const hasExhausted = items.some((p) => (p.remainingPercent ?? 100) < 10);
     if (hasExhausted || score < 15) return 'sleeping';
     if (score < 35) return 'tired';
     if (score <= 75) return 'alert';
@@ -180,10 +171,13 @@ export default function App() {
   // real provider data (that was the old bug).
   const mascotState = mascotPreviewOverride ?? getMascotState(overallHealthScore, scorableProviders);
 
-  const lowProviders = scorableProviders.filter((p) => p.remainingPercent < 40);
-  const nextResetSeconds = lowProviders.length
-    ? Math.min(...lowProviders.map((p) => p.resetTimerSeconds))
-    : 6240;
+  const lowProviders = scorableProviders.filter((p) => (p.remainingPercent ?? 100) < 40);
+  const resetCandidates = lowProviders
+    .map((p) => p.resetTimerSeconds)
+    .filter((s): s is number => typeof s === 'number');
+  const nextResetSeconds: number | null = resetCandidates.length
+    ? Math.min(...resetCandidates)
+    : null;
 
   // Accepts an explicit key set so callers that just called setApiKeys() (an async
   // state update) can refresh against the NEW keys instead of a stale closure value.
@@ -288,14 +282,16 @@ export default function App() {
           <span className="text-slate-400">Health: </span>
           <span
             className={`font-bold ${
-              overallHealthScore > 70
+              overallHealthScore === null
+                ? 'text-slate-500'
+                : overallHealthScore > 70
                 ? 'text-emerald-400'
                 : overallHealthScore >= 30
                 ? 'text-amber-400'
                 : 'text-red-400'
             }`}
           >
-            {overallHealthScore}%
+            {overallHealthScore === null ? '—' : `${overallHealthScore}%`}
           </span>
         </div>
       </div>
@@ -326,6 +322,7 @@ export default function App() {
             nextResetSeconds={nextResetSeconds}
             onClick={() => {
               const cycle: Record<MascotState, MascotState> = {
+                idle: 'flying',
                 flying: 'alert',
                 alert: 'tired',
                 tired: 'sleeping',
@@ -365,13 +362,20 @@ export default function App() {
             ))}
           </div>
         ) : (
-          /* Empty State when no tools are authenticated yet */
+          /* Empty State when no API key has been verified yet */
           <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 flex flex-col items-center justify-center text-center gap-2 text-slate-400">
             <ShieldAlert className="w-8 h-8 text-amber-400 opacity-80" />
-            <span className="text-xs font-semibold text-slate-200">No Authenticated AI Tools Active</span>
+            <span className="text-xs font-semibold text-slate-200">No Verified AI Tools Yet</span>
             <p className="text-[11px] text-slate-400 max-w-xs">
-              Connect your API keys or log into your local sessions to monitor your live AI quotas.
+              Add an API key to monitor a provider's live quota. A tool only appears here once
+              its key has been verified with the provider — nothing is estimated.
             </p>
+            {installedButUnreadable.length > 0 && (
+              <p className="text-[10px] text-slate-500 max-w-xs">
+                Detected on this machine but exposing no readable quota:{' '}
+                {installedButUnreadable.map((p) => p.name).join(', ')}.
+              </p>
+            )}
             <button
               onClick={() => setIsSettingsOpen(true)}
               className="mt-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs flex items-center gap-1.5 transition-colors"

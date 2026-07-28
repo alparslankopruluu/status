@@ -54,6 +54,13 @@ const PROVIDER_META: Record<
 const PREVIEW_CYCLE: MascotState[] = ['flying', 'alert', 'tired', 'sleeping'];
 
 const PREVIEW_STYLES: Record<MascotState, { title: string; chipActive: string; chipInactive: string }> = {
+  // `idle` isn't part of the onboarding tour (it's the "no data yet" resting state),
+  // but the map must stay exhaustive over MascotState.
+  idle: {
+    title: 'text-slate-300',
+    chipActive: 'bg-slate-700/40 border-slate-600/60',
+    chipInactive: 'bg-slate-900/50 border-slate-800 hover:border-slate-700',
+  },
   flying: {
     title: 'text-emerald-300',
     chipActive: 'bg-emerald-500/15 border-emerald-500/40',
@@ -242,8 +249,14 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                       <Key className="w-4 h-4 text-emerald-400" /> Connect API Keys or Auto-Detect
                     </h3>
                     <p className="text-xs text-slate-400 mt-1">
-                      StatusOwl auto-detects local session folders, or you can paste a key below. A tool only shows up in your
-                      dashboard once one of these is actually verified — nothing is faked.
+                      Paste a key below. A tool only shows up in your dashboard once its key has
+                      been verified with a live request to the provider — nothing is faked or
+                      estimated.
+                    </p>
+                    <p className="text-[10px] text-amber-300/90 bg-amber-500/10 border border-amber-500/25 rounded-lg px-2 py-1.5 leading-snug mt-2">
+                      These measure the provider's <strong>API</strong> quota — not your Claude Code
+                      / Antigravity <strong>subscription</strong> limits. Those are separate
+                      systems, and subscription usage isn't exposed to any API.
                     </p>
                   </div>
 

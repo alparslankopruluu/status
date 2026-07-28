@@ -175,11 +175,30 @@ fn main() {
     tauri::Builder::default()
         .setup(|app| {
             let quit_item = MenuItem::with_id(app, "quit", "Quit StatusOwl", true, None::<&str>)?;
-            let hide_item = MenuItem::with_id(app, "toggle", "Toggle Window", true, None::<&str>)?;
+            let hide_item =
+                MenuItem::with_id(app, "toggle", "Show/Hide StatusOwl", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&hide_item, &quit_item])?;
 
+            // The window is skipTaskbar + undecorated, so this tray item is the ONLY way
+            // back once it's hidden. Without an explicit icon it renders blank in the
+            // macOS menu bar, which made a hidden window unrecoverable.
+            //
+            // This is a dedicated *template* image (transparent background, solid owl
+            // silhouette). The app icon can't be reused here: macOS template rendering
+            // only reads the alpha channel, and the app icon's opaque rounded-rect
+            // background would collapse into a featureless white square.
+            let tray_icon = tauri::image::Image::from_bytes(include_bytes!(
+                "../icons/tray-icon.png"
+            ))?;
+
             let _tray = TrayIconBuilder::new()
+                .icon(tray_icon)
+                // Renders as a monochrome template image so it adapts to light/dark menu bars.
+                .icon_as_template(true)
                 .menu(&menu)
+                // Left click must toggle the window; without this the attached menu
+                // swallows left clicks and the handler below never fires.
+                .show_menu_on_left_click(false)
                 .tooltip("StatusOwl - AI Quota Monitor")
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "quit" => {

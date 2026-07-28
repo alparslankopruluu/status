@@ -102,7 +102,9 @@ export const ProviderCard: React.FC<ProviderCardProps> = ({ provider, onRefresh 
             <p className="text-[10px] text-slate-400">{provider.subtitle}</p>
           </div>
         </div>
-        {provider.hasQuotaData ? getStatusBadge(provider.remainingPercent) : null}
+        {typeof provider.remainingPercent === 'number' && provider.hasQuotaData
+          ? getStatusBadge(provider.remainingPercent)
+          : null}
       </div>
 
       {/* Authentication Status Connection Pill — honest, no fabricated "Live" claim */}
@@ -119,8 +121,8 @@ export const ProviderCard: React.FC<ProviderCardProps> = ({ provider, onRefresh 
         <span className="font-mono text-slate-400 text-[9px]">{provider.lastUpdated}</span>
       </div>
 
-      {/* Progress Bar & Percentage — only ever rendered when hasQuotaData is real */}
-      {provider.hasQuotaData ? (
+      {/* Progress Bar & Percentage — only ever rendered from a real rate-limit header */}
+      {typeof provider.remainingPercent === 'number' && provider.hasQuotaData ? (
         <div>
           <div className="flex justify-between items-center text-xs mb-1">
             <span className="text-slate-400 font-medium text-[11px]">Remaining Quota (live)</span>
@@ -142,7 +144,7 @@ export const ProviderCard: React.FC<ProviderCardProps> = ({ provider, onRefresh 
       {/* Details & Direct Auth Button Footer */}
       <div className="flex items-center justify-between pt-1.5 border-t border-slate-800/60 text-[10px] text-slate-400">
         <div className="flex items-center gap-1 font-mono">
-          {provider.hasQuotaData && (
+          {typeof provider.resetTimerSeconds === 'number' && provider.hasQuotaData && (
             <>
               <Clock className="w-3 h-3 text-slate-500" />
               <span>{formatTimer(provider.resetTimerSeconds)}</span>
